@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 가상환경
+.venv/
+venv/
+env/
+.env
+
+# SQLite DB (실행 시 자동 생성됨)
+*.db
+*.sqlite
+*.sqlite3
+
+# PyInstaller 빌드 결과물
+*.spec
+dist/
+build/
+
+# IDE / 에디터
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 테스트 / 캐시
+.pytest_cache/
+.coverage
+htmlcov/
