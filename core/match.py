@@ -6,9 +6,9 @@ from typing import Dict, List
 from database.db import get_connection, add_gold
 from core.grade import calc_overall, calc_grade
 from core.balance import (
-    STAT_KEYS, calc_effective, calc_power,
+    STAT_KEYS, GRADE_ORDER, calc_effective, calc_power,
     get_rival_info, calc_upset_level, calc_upset_rewards,
-    roll_condition,
+    calc_grade_gap_boost, roll_condition,
 )
 
 RACE_BONUS_COL = {
@@ -162,8 +162,12 @@ def simulate_set(
     a_fatigue_override: int | None = None,
     b_fatigue_override: int | None = None,
     set_number: int = 1,
+    series_score: tuple[int, int] = (0, 0),
 ) -> SetResult:
-    """단일 세트 결과 반환. DB에 쓰지 않는다."""
+    """단일 세트 결과 반환. DB에 쓰지 않는다.
+
+    series_score: (a_wins, b_wins) — 다전제 현재 스코어, 역전 모멘텀 보정에 사용.
+    """
     conn = get_connection()
     cur = conn.cursor()
 
@@ -186,8 +190,38 @@ def simulate_set(
     eff_b = calc_effective(pb, ib, map_bonus_b, b_condition, rival_stat,
                            fatigue_val=b_fatigue_override)
 
-    power_a = calc_power(eff_a, pa["grade"], extra_luck)
-    power_b = calc_power(eff_b, pb["grade"], extra_luck)
+    # ── 언더독 부스트 + 강자 패널티 ──────────────────────────
+    a_boost = a_penalty = 0
+    b_boost = b_penalty = 0
+
+    a_grade = pa["grade"]
+    b_grade = pb["grade"]
+    try:
+        a_idx = GRADE_ORDER.index(a_grade)
+        b_idx = GRADE_ORDER.index(b_grade)
+    except ValueError:
+        a_idx = b_idx = 4  # fallback: B
+
+    if a_idx > b_idx:   # a가 언더독
+        boost, penalty = calc_grade_gap_boost(a_grade, b_grade)
+        a_boost += boost
+        b_penalty += penalty
+    elif b_idx > a_idx:  # b가 언더독
+        boost, penalty = calc_grade_gap_boost(b_grade, a_grade)
+        b_boost += boost
+        a_penalty += penalty
+
+    # ── 다전제 역전 모멘텀 ────────────────────────────────────
+    a_sets, b_sets = series_score
+    if b_sets > a_sets:
+        a_boost += 5   # a가 뒤질 때 반격 보정
+    elif a_sets > b_sets:
+        b_boost += 5   # b가 뒤질 때 반격 보정
+
+    power_a = calc_power(eff_a, a_grade, extra_luck,
+                         underdog_boost=a_boost, favorite_penalty=a_penalty)
+    power_b = calc_power(eff_b, b_grade, extra_luck,
+                         underdog_boost=b_boost, favorite_penalty=b_penalty)
 
     winner_id = player_a_id if power_a >= power_b else player_b_id
     loser_id  = player_b_id if winner_id == player_a_id else player_a_id
@@ -301,7 +335,8 @@ def simulate_series(
 
     while a_wins < sets_to_win and b_wins < sets_to_win:
         s = simulate_set(player_a_id, player_b_id, map_id,
-                         a_condition, b_condition, set_number=set_num)
+                         a_condition, b_condition,
+                         set_number=set_num, series_score=(a_wins, b_wins))
         sets.append(s)
         if s.winner_id == player_a_id:
             a_wins += 1

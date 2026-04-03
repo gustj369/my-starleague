@@ -18,12 +18,14 @@ from database.seed_data import seed
 from database.db import (
     get_gold, get_connection,
     get_current_tournament_id, set_current_tournament_id,
+    get_game_summary, save_tournament_result,
     migrate_db
 )
 from core.tournament import (
     create_tournament, get_tournament, get_my_pending_match,
     complete_my_match, is_round_complete, advance_round,
-    is_my_player_alive, get_elimination_round, ROUNDS, ROUND_REWARDS
+    is_my_player_alive, get_elimination_round,
+    get_latest_completed_tournament, ROUNDS, ROUND_REWARDS
 )
 
 from ui.styles import MAIN_QSS
@@ -203,7 +205,11 @@ class MainWindow(QMainWindow):
     # ── 메인 메뉴 ──────────────────────────────────────────
     def _new_game(self):
         from database.db import set_gold
-        set_gold(500)
+        summary = get_game_summary()
+        if summary["total_tournaments"] == 0:
+            # 첫 플레이: 초기 골드 500G 지급
+            set_gold(500)
+        # 이후에는 현재 골드 유지
         self.navbar.setVisible(True)
         self.s_select.refresh()
         self._go(IDX_SELECT)
@@ -219,6 +225,8 @@ class MainWindow(QMainWindow):
                 self.s_bracket.load_tournament(self._tid, self._my_id)
                 self._go(IDX_BRACKET)
                 return
+
+        # 진행 중 토너먼트가 없으면 → 완료된 것이 있어도 골드 유지하며 새 토너먼트
         self._new_game()
 
     # ── 선수 선택 → 토너먼트 생성 ────────────────────────────
@@ -317,7 +325,10 @@ class MainWindow(QMainWindow):
         self.s_final.show_result(
             achievement, self._my_id, self._player_snap_start, gold_earned
         )
+        # 업적 저장 + 플레이 횟수 증가 (골드는 유지)
+        save_tournament_result(achievement, gold_earned)
         set_current_tournament_id(None)
+        self.s_menu.refresh()
         self._go(IDX_FINAL)
 
     # ── 다시 시작 ────────────────────────────────────────

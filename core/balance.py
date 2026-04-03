@@ -81,14 +81,47 @@ def apply_condition_item(condition: str) -> str:
 
 
 # ── 핸디캡 (랜덤 범위) ────────────────────────────────────────
+# 하위 등급일수록 랜덤 폭이 넓어 "운이 좋은 날" 이변 가능 (PRD v5)
+_LUCK_RANGE: dict[str, int] = {
+    "SSS": 12,
+    "SS":  12,
+    "S":   12,
+    "A":   14,
+    "B":   16,
+    "C":   18,
+    "D":   20,
+    "E":   22,
+    "F":   22,
+}
+
+
 def luck_range(grade: str) -> tuple[int, int]:
-    """등급별 운 범위 반환. SSS/SS는 폭이 넓어 이변 가능성↑"""
-    if grade in ("SSS", "SS"):
-        return (-15, 15)
-    elif grade in ("S", "A"):
-        return (-10, 10)
-    else:
-        return (-5, 5)
+    """등급별 운 범위 반환"""
+    r = _LUCK_RANGE.get(grade, 14)
+    return (-r, r)
+
+
+def calc_grade_gap_boost(underdog_grade: str, favorite_grade: str) -> tuple[int, int]:
+    """언더독 부스트 및 강자 패널티 계산.
+
+    Returns:
+        (underdog_boost, favorite_penalty) — 언더독 랜덤 상한 확장 / 강자 랜덤 상한 축소
+    """
+    try:
+        u_idx = GRADE_ORDER.index(underdog_grade)
+        f_idx = GRADE_ORDER.index(favorite_grade)
+        diff = u_idx - f_idx  # 양수 = 언더독이 더 낮은 등급
+    except ValueError:
+        return (0, 0)
+
+    if diff <= 0:
+        return (0, 0)
+    elif diff == 1:
+        return (8, 5)
+    elif diff == 2:
+        return (15, 8)
+    else:  # diff >= 3
+        return (20, 10)
 
 
 def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
@@ -199,9 +232,15 @@ def calc_effective(
     return eff
 
 
-def calc_power(eff: dict, grade: str, extra_luck: int = 0) -> float:
-    """유효 스탯 → 전투력 (평균 + 랜덤 운)"""
+def calc_power(eff: dict, grade: str, extra_luck: int = 0,
+               underdog_boost: int = 0, favorite_penalty: int = 0) -> float:
+    """유효 스탯 → 전투력 (평균 + 랜덤 운).
+
+    underdog_boost:    언더독 랜덤 상한 확장 (등급 차·모멘텀 기반)
+    favorite_penalty:  강자 랜덤 상한 축소 (심리적 이완)
+    """
     lo, hi = luck_range(grade)
-    luck = random.randint(lo, hi) + extra_luck
+    adj_hi = hi + underdog_boost - favorite_penalty
+    luck = random.uniform(lo, adj_hi) + extra_luck
     base = sum(eff[k] for k in STAT_KEYS) / len(STAT_KEYS)
     return round(base + luck, 2)

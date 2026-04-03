@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QPainter, QColor, QLinearGradient
 
+from database.db import get_game_summary, get_current_tournament_id
+
 
 class AnimatedTitle(QLabel):
     """금색 글로우 효과를 가진 타이틀 레이블"""
@@ -102,6 +104,13 @@ class MainMenuScreen(QWidget):
         btn_area.addWidget(self.btn_load)
         btn_area.addWidget(self.btn_exit)
 
+        # ── 세이브 요약 정보 ──
+        self.lbl_summary = QLabel("")
+        self.lbl_summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_summary.setStyleSheet(
+            "color: #4fc3f7; font-size: 12px; background: transparent;"
+        )
+
         # ── 하단 크레딧 ──
         credit = QLabel("Powered by Claude Code  ·  2012 KeSPA Brood War")
         credit.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -111,12 +120,43 @@ class MainMenuScreen(QWidget):
         bg_layout.addLayout(title_area)
         bg_layout.addSpacing(40)
         bg_layout.addWidget(sep)
-        bg_layout.addSpacing(40)
+        bg_layout.addSpacing(24)
         bg_layout.addLayout(btn_area)
+        bg_layout.addSpacing(16)
+        bg_layout.addWidget(self.lbl_summary)
         bg_layout.addStretch(2)
         bg_layout.addWidget(credit)
 
         root.addWidget(bg)
+        self.refresh()
+
+    def refresh(self):
+        """세이브 상태에 따라 버튼 레이블과 요약 정보를 갱신"""
+        tid = get_current_tournament_id()
+        summary = get_game_summary()
+
+        if tid:
+            # 진행 중인 토너먼트
+            self.btn_load.setText("◈  이어하기 (진행 중)")
+            self.btn_load.setEnabled(True)
+        elif summary["total_tournaments"] > 0:
+            # 완료된 토너먼트만 있음
+            self.btn_load.setText("◈  새 토너먼트 시작 (골드 유지)")
+            self.btn_load.setEnabled(True)
+        else:
+            self.btn_load.setText("◈  불러오기 (저장 없음)")
+            self.btn_load.setEnabled(False)
+
+        # 요약 정보 표시
+        if summary["total_tournaments"] > 0:
+            achv = summary["last_achievement"] or "—"
+            gold = summary["gold"]
+            count = summary["total_tournaments"]
+            self.lbl_summary.setText(
+                f"마지막 성적: {achv}   |   보유 골드: {gold:,} G   |   토너먼트: {count}회"
+            )
+        else:
+            self.lbl_summary.setText("")
 
     @staticmethod
     def _make_menu_btn(text: str, primary=False, danger=False) -> QPushButton:

@@ -69,6 +69,15 @@ def get_tournament(tid: int) -> dict | None:
         return dict(row) if row else None
 
 
+def get_latest_completed_tournament() -> dict | None:
+    """가장 최근 완료된 토너먼트 반환 (저장 데이터 불러오기용)"""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM tournaments WHERE status='완료' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def get_round_matches(tid: int, round_name: str) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(

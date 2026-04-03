@@ -214,3 +214,34 @@ def set_current_tournament_id(tid: int | None):
                 (str(tid),)
             )
         conn.commit()
+
+
+def get_game_summary() -> dict:
+    """골드·누적 토너먼트 수·마지막 업적 반환"""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT key, value FROM game_state").fetchall()
+    data = {r["key"]: r["value"] for r in rows}
+    return {
+        "gold": int(data.get("gold", 500)),
+        "total_tournaments": int(data.get("total_tournaments_played", 0)),
+        "last_achievement": data.get("last_achievement", ""),
+    }
+
+
+def save_tournament_result(achievement: str, gold_earned: int):
+    """토너먼트 종료 시 업적과 플레이 횟수 저장. current_tournament_id는 유지."""
+    with get_connection() as conn:
+        cur_count_row = conn.execute(
+            "SELECT value FROM game_state WHERE key='total_tournaments_played'"
+        ).fetchone()
+        cur_count = int(cur_count_row["value"]) if cur_count_row else 0
+
+        conn.execute(
+            "INSERT OR REPLACE INTO game_state (key, value) VALUES ('last_achievement', ?)",
+            (achievement,)
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO game_state (key, value) VALUES ('total_tournaments_played', ?)",
+            (str(cur_count + 1),)
+        )
+        conn.commit()

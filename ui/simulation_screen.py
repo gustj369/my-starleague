@@ -11,7 +11,7 @@ from database.db import get_connection
 from core.match import simulate_set, finalize_match, SETS_TO_WIN, SetResult, MatchOutcome
 from core.balance import (
     roll_condition, apply_condition_item, CONDITION_COLOR,
-    fatigue_mult, add_fatigue
+    fatigue_mult, add_fatigue, GRADE_ORDER,
 )
 from core.commentary import get_set_commentary
 from ui.styles import GRADE_STYLE, RACE_COLORS
@@ -339,12 +339,13 @@ class SimulationScreen(QWidget):
         self.btn_next.setEnabled(False)
         self.btn_item.setEnabled(False)
 
-        # 세트 시뮬레이션
+        # 세트 시뮬레이션 (역전 모멘텀 보정 포함)
         result = simulate_set(
             self._my_id, self._opp_id, self._map_id,
             self._my_condition, self._opp_condition,
             a_fatigue_override=self._my_fatigue,
             set_number=set_num,
+            series_score=(self._a_wins, self._b_wins),
         )
         self._all_sets.append(result)
 
@@ -394,8 +395,34 @@ class SimulationScreen(QWidget):
         w_name = pa.get("name") if result.winner_id == self._my_id else pb.get("name")
         set_num = result.set_number
 
+        # 이변/모멘텀 배지 계산
+        badge = ""
+        a_grade = pa.get("grade", "C")
+        b_grade = pb.get("grade", "C")
+        try:
+            a_idx = GRADE_ORDER.index(a_grade)
+            b_idx = GRADE_ORDER.index(b_grade)
+        except ValueError:
+            a_idx = b_idx = 4
+
+        winner_is_a = (result.winner_id == self._my_id)
+        grade_diff = abs(a_idx - b_idx)
+        underdog_won = (winner_is_a and a_idx > b_idx) or (not winner_is_a and b_idx > a_idx)
+
+        # 역전 모멘텀: 뒤지다가 세트를 따낸 경우
+        a_before = self._a_wins - (1 if winner_is_a else 0)
+        b_before = self._b_wins - (1 if not winner_is_a else 0)
+        comeback = (winner_is_a and b_before > a_before) or (not winner_is_a and a_before > b_before)
+
+        if underdog_won and grade_diff >= 2:
+            badge = "  ⚡ 이변 예감!"
+        elif underdog_won and grade_diff == 1:
+            badge = "  🔥 분위기 전환!"
+        elif comeback:
+            badge = "  🔥 분위기 전환!"
+
         self.lbl_set_result.setText(
-            f"★  {set_num}세트: {w_name} 승!   ( {self._a_wins} - {self._b_wins} )"
+            f"★  {set_num}세트: {w_name} 승!   ( {self._a_wins} - {self._b_wins} ){badge}"
         )
         self._update_score()
 
