@@ -205,11 +205,8 @@ class MainWindow(QMainWindow):
     # ── 메인 메뉴 ──────────────────────────────────────────
     def _new_game(self):
         from database.db import set_gold
-        summary = get_game_summary()
-        if summary["total_tournaments"] == 0:
-            # 첫 플레이: 초기 골드 500G 지급
-            set_gold(500)
-        # 이후에는 현재 골드 유지
+        # 새 게임(새 토너먼트) 시작 시 골드 500G 리셋 — 매 판 신선한 시작감
+        set_gold(500)
         self.navbar.setVisible(True)
         self.s_select.refresh()
         self._go(IDX_SELECT)

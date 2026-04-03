@@ -10,7 +10,7 @@ from core.balance import (
     roll_condition, apply_condition_item,
     CONDITION_COLOR, get_locked_map_id, is_rival
 )
-from ui.widgets import StatBar, RadarChart, make_separator
+from ui.widgets import StatBar, RadarChart, make_separator, make_player_avatar, get_player_image_path
 from ui.styles import RACE_COLORS, GRADE_STYLE
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
@@ -231,6 +231,20 @@ class MatchPrepScreen(QWidget):
             " font-weight: bold; font-size: 12px; background: transparent;"
         )
 
+        # 이미지 아바타
+        avatar_placeholder = QLabel("?")
+        avatar_placeholder.setObjectName(f"avatar_{slot}")
+        avatar_placeholder.setFixedSize(80, 80)
+        avatar_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar_placeholder.setStyleSheet(
+            "background: #1e3a5f; color: #ffd700; font-size: 24px; "
+            "font-weight: bold; border-radius: 40px; border: 1px solid #1e3a5f;"
+        )
+        avatar_row = QHBoxLayout()
+        avatar_row.addStretch()
+        avatar_row.addWidget(avatar_placeholder)
+        avatar_row.addStretch()
+
         name_lbl = QLabel("—")
         name_lbl.setObjectName(f"name_{slot}")
         name_lbl.setStyleSheet("font-size: 18px; font-weight: bold; background: transparent;")
@@ -264,6 +278,7 @@ class MatchPrepScreen(QWidget):
         bonus_lbl.setStyleSheet("font-size: 11px; background: transparent;")
 
         lay.addWidget(tag_lbl)
+        lay.addLayout(avatar_row)
         lay.addWidget(name_lbl)
         lay.addWidget(grade_lbl)
         lay.addWidget(race_lbl)
@@ -380,7 +395,31 @@ class MatchPrepScreen(QWidget):
         )
 
     def _fill_panel(self, slot: str, player: dict):
+        from PyQt6.QtGui import QPixmap
+        from PyQt6.QtCore import Qt as _Qt
         frame = self.panel_my if slot == "MY" else self.panel_opp
+
+        # 이미지 업데이트
+        avatar_lbl = frame.findChild(QLabel, f"avatar_{slot}")
+        if avatar_lbl:
+            img_path = get_player_image_path(player["name"])
+            if img_path:
+                px = QPixmap(img_path).scaled(
+                    80, 80,
+                    _Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    _Qt.TransformationMode.SmoothTransformation,
+                )
+                avatar_lbl.setPixmap(px)
+                avatar_lbl.setStyleSheet(
+                    "border-radius: 40px; background: #0d1525; border: 1px solid #1e3a5f;"
+                )
+            else:
+                avatar_lbl.setText(player["name"][0])
+                avatar_lbl.setStyleSheet(
+                    "background: #1e3a5f; color: #ffd700; font-size: 24px; "
+                    "font-weight: bold; border-radius: 40px; border: 1px solid #1e3a5f;"
+                )
+
         frame.findChild(QLabel, f"name_{slot}").setText(player["name"])
 
         grade = player["grade"]

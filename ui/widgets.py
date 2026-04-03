@@ -1,11 +1,48 @@
 """공통 재사용 위젯 모음"""
 import math
+from pathlib import Path
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QWidget
 from PyQt6.QtCore import Qt, QPointF, QRectF
-from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPolygonF, QFont
+from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPolygonF, QFont, QPixmap
 
 from core.grade import GRADE_COLORS
 from ui.styles import GRADE_STYLE, RACE_COLORS
+
+# 이미지 디렉토리 (my_starleague/../image/)
+_IMAGE_DIR = Path(__file__).parent.parent.parent / "image"
+
+
+def get_player_image_path(name: str) -> str:
+    """선수 이름으로 이미지 경로 반환. 없으면 빈 문자열."""
+    path = _IMAGE_DIR / f"{name}.png"
+    return str(path) if path.exists() else ""
+
+
+def make_player_avatar(name: str, size: int = 90) -> QLabel:
+    """선수 이미지 레이블 생성. 이미지 없으면 이름 이니셜 표시."""
+    lbl = QLabel()
+    lbl.setFixedSize(size, size)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    img_path = get_player_image_path(name)
+    if img_path:
+        px = QPixmap(img_path).scaled(
+            size, size,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        lbl.setPixmap(px)
+        lbl.setStyleSheet(
+            f"border-radius: {size//2}px; background: #0d1525; border: 1px solid #1e3a5f;"
+        )
+    else:
+        initial = name[0] if name else "?"
+        lbl.setText(initial)
+        lbl.setStyleSheet(
+            f"background: #1e3a5f; color: #ffd700; font-size: {size//3}px; "
+            f"font-weight: bold; border-radius: {size//2}px; border: 1px solid #1e3a5f;"
+        )
+    return lbl
 
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
@@ -97,13 +134,21 @@ class PlayerCard(QFrame):
 
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+
+        # ── 이미지 ──
+        self.lbl_avatar = make_player_avatar(self._player["name"], size=72)
+        self.lbl_avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar_row = QHBoxLayout()
+        avatar_row.addStretch()
+        avatar_row.addWidget(self.lbl_avatar)
+        avatar_row.addStretch()
 
         # 이름 + 종족
         top = QHBoxLayout()
         self.lbl_name = QLabel(self._player["name"])
-        self.lbl_name.setStyleSheet("font-size: 15px; font-weight: bold; background: transparent;")
+        self.lbl_name.setStyleSheet("font-size: 14px; font-weight: bold; background: transparent;")
 
         race = self._player["race"]
         self.lbl_race = QLabel(race)
@@ -132,6 +177,7 @@ class PlayerCard(QFrame):
         color = RACE_COLORS.get(self._player["race"], "#4fc3f7")
         self.radar = RadarChart(vals, color)
 
+        layout.addLayout(avatar_row)
         layout.addLayout(top)
         layout.addWidget(self.lbl_grade)
         layout.addWidget(self.lbl_overall)

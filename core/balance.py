@@ -81,47 +81,34 @@ def apply_condition_item(condition: str) -> str:
 
 
 # ── 핸디캡 (랜덤 범위) ────────────────────────────────────────
-# 하위 등급일수록 랜덤 폭이 넓어 "운이 좋은 날" 이변 가능 (PRD v5)
+# 하위 등급일수록 랜덤 폭이 넓어 "운이 좋은 날" 이변 가능 (PRD v6)
+# B(±20) vs S(±10): 강한 B ~20% 이변 확률, 약한 B ~6% — 스탯 차이가 의미 있음
 _LUCK_RANGE: dict[str, int] = {
-    "SSS": 12,
-    "SS":  12,
-    "S":   12,
-    "A":   14,
-    "B":   16,
-    "C":   18,
-    "D":   20,
-    "E":   22,
-    "F":   22,
+    "SSS": 8,
+    "SS":  9,
+    "S":   10,
+    "A":   15,
+    "B":   20,
+    "C":   22,
+    "D":   24,
+    "E":   26,
+    "F":   26,
 }
 
 
 def luck_range(grade: str) -> tuple[int, int]:
     """등급별 운 범위 반환"""
-    r = _LUCK_RANGE.get(grade, 14)
+    r = _LUCK_RANGE.get(grade, 15)
     return (-r, r)
 
 
 def calc_grade_gap_boost(underdog_grade: str, favorite_grade: str) -> tuple[int, int]:
-    """언더독 부스트 및 강자 패널티 계산.
+    """언더독 부스트 및 강자 패널티.
 
-    Returns:
-        (underdog_boost, favorite_penalty) — 언더독 랜덤 상한 확장 / 강자 랜덤 상한 축소
+    PRD v6: 등급 차 boost는 적용하지 않음 — 넓은 luck 범위로 자연스럽게 이변 발생.
+    다전제 모멘텀(comeback) 보정만 simulate_set에서 유지.
     """
-    try:
-        u_idx = GRADE_ORDER.index(underdog_grade)
-        f_idx = GRADE_ORDER.index(favorite_grade)
-        diff = u_idx - f_idx  # 양수 = 언더독이 더 낮은 등급
-    except ValueError:
-        return (0, 0)
-
-    if diff <= 0:
-        return (0, 0)
-    elif diff == 1:
-        return (8, 5)
-    elif diff == 2:
-        return (15, 8)
-    else:  # diff >= 3
-        return (20, 10)
+    return (0, 0)
 
 
 def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
