@@ -20,8 +20,14 @@ ROUND_REWARDS = {
 # ─────────────────────────────────────────────────
 
 def create_tournament(my_player_id: int) -> int:
-    """16강 대진 생성 후 tournament_id 반환"""
+    """16강 대진 생성 후 tournament_id 반환.
+
+    새 토너먼트 시작 시 모든 선수 피로도를 0으로 초기화.
+    """
     with get_connection() as conn:
+        # 피로도 전체 리셋
+        conn.execute("UPDATE players SET fatigue = 0")
+        conn.commit()
         rows = conn.execute("SELECT id FROM players").fetchall()
         all_ids = [r[0] for r in rows]
 

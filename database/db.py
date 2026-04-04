@@ -2,11 +2,24 @@ import sqlite3
 import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "my_starleague.db"
+# ── 슬롯 시스템 ───────────────────────────────────────────────
+_SAVES_DIR = Path(__file__).parent.parent.parent / "saves"
+_ACTIVE_SLOT: int = -1   # 선택된 슬롯 인덱스 (0~4)
+
+
+def set_active_slot(slot_idx: int):
+    global _ACTIVE_SLOT
+    _ACTIVE_SLOT = slot_idx
+
+
+def get_db_path() -> str:
+    """현재 활성 슬롯의 DB 파일 경로 반환"""
+    _SAVES_DIR.mkdir(exist_ok=True)
+    return str(_SAVES_DIR / f"save_{_ACTIVE_SLOT}.db")
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

@@ -37,6 +37,7 @@ class AnimatedTitle(QLabel):
 class MainMenuScreen(QWidget):
     sig_new_game   = pyqtSignal()
     sig_load_game  = pyqtSignal()
+    sig_back       = pyqtSignal()   # 슬롯 선택 화면으로
     sig_exit       = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -92,16 +93,19 @@ class MainMenuScreen(QWidget):
         btn_area.setSpacing(14)
         btn_area.setContentsMargins(120, 0, 120, 0)
 
-        self.btn_new  = self._make_menu_btn("▶  게임 시작",  primary=True)
+        self.btn_new  = self._make_menu_btn("▶  새 토너먼트",  primary=True)
         self.btn_load = self._make_menu_btn("◈  불러오기")
+        self.btn_back = self._make_menu_btn("◀  슬롯 선택")
         self.btn_exit = self._make_menu_btn("✕  종료", danger=True)
 
         self.btn_new.clicked.connect(self.sig_new_game)
         self.btn_load.clicked.connect(self.sig_load_game)
+        self.btn_back.clicked.connect(self.sig_back)
         self.btn_exit.clicked.connect(self.sig_exit)
 
         btn_area.addWidget(self.btn_new)
         btn_area.addWidget(self.btn_load)
+        btn_area.addWidget(self.btn_back)
         btn_area.addWidget(self.btn_exit)
 
         # ── 세이브 요약 정보 ──

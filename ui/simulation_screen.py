@@ -182,6 +182,13 @@ class SimulationScreen(QWidget):
             "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
         )
 
+        # ── 페이즈 결과 미니 표시 ──
+        self.lbl_phase_scores = QLabel("")
+        self.lbl_phase_scores.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_phase_scores.setStyleSheet(
+            "color: #4fc3f7; font-size: 12px; background: transparent;"
+        )
+
         # ── 하단 버튼 ──
         btn_row = QHBoxLayout()
         self.btn_item = QPushButton("⚡ 긴급 아이템 사용")
@@ -212,6 +219,7 @@ class SimulationScreen(QWidget):
         root.addWidget(make_separator())
         root.addWidget(self.mid_stack, 1)
         root.addWidget(self.lbl_set_result)
+        root.addWidget(self.lbl_phase_scores)
         root.addWidget(make_separator())
         root.addLayout(btn_row)
 
@@ -268,6 +276,10 @@ class SimulationScreen(QWidget):
             "color: #ffd700; font-size: 15px; font-weight: bold; background: transparent;"
         )
 
+        rps_hint = QLabel("가위  ▶  보  ▶  바위  ▶  가위  (앞이 뒤를 이김)")
+        rps_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rps_hint.setStyleSheet("color: #2a5080; font-size: 11px; background: transparent;")
+
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         self.build_btns: list[QPushButton] = []
@@ -307,6 +319,7 @@ class SimulationScreen(QWidget):
 
         lay.addStretch()
         lay.addWidget(title)
+        lay.addWidget(rps_hint)
         lay.addLayout(btn_row)
         lay.addSpacing(8)
         lay.addWidget(self.lbl_build_reveal)
@@ -435,6 +448,7 @@ class SimulationScreen(QWidget):
 
         self.lbl_build_reveal.setText("")
         self.lbl_build_result.setText("")
+        self.lbl_phase_scores.setText("")
         self.mid_stack.setCurrentIndex(0)
 
     # ── 빌드 선택 처리 ───────────────────────────────────────
@@ -572,6 +586,16 @@ class SimulationScreen(QWidget):
             f"★  {set_num}세트: {w_name} 승!   ( {self._a_wins} - {self._b_wins} ){badge}"
         )
         self._update_score()
+
+        # 페이즈 결과 표시
+        if result.phases:
+            parts = []
+            for ph in result.phases:
+                ph_winner_name = pa.get("name") if ph.winner_id == self._my_id else pb.get("name")
+                parts.append(f"【{ph.phase_name}】{ph_winner_name} ✓")
+            self.lbl_phase_scores.setText("  |  ".join(parts))
+        else:
+            self.lbl_phase_scores.setText("")
 
         # 승부 결정 여부
         if self._a_wins >= self._sets_to_win or self._b_wins >= self._sets_to_win:
