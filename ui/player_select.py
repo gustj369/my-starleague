@@ -10,10 +10,12 @@ from ui.widgets import PlayerCard, make_separator
 from ui.styles import RACE_COLORS, GRADE_STYLE
 
 
-def _load_all_players() -> list[dict]:
+def _load_all_players(sort_by: str = "overall") -> list[dict]:
+    valid = {"overall": "overall DESC", "grade": "overall DESC", "name": "name ASC"}
+    order = valid.get(sort_by, "overall DESC")
     with get_connection() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT * FROM players ORDER BY overall DESC"
+            f"SELECT * FROM players ORDER BY {order}"
         ).fetchall()]
 
 
@@ -58,11 +60,27 @@ class PlayerSelectScreen(QWidget):
         # 필터
         filter_row = QHBoxLayout()
         filter_row.addStretch()
-        filter_row.addWidget(QLabel("종족 필터:"))
+        filter_row.addWidget(QLabel("종족:"))
         self.cmb_race = QComboBox()
         self.cmb_race.addItems(["전체", "테란", "저그", "프로토스"])
         self.cmb_race.currentTextChanged.connect(self._rebuild)
         filter_row.addWidget(self.cmb_race)
+        filter_row.addSpacing(16)
+        filter_row.addWidget(QLabel("정렬:"))
+        self.cmb_sort = QComboBox()
+        self.cmb_sort.addItems(["OVR 높은순", "이름순"])
+        self.cmb_sort.currentIndexChanged.connect(self._rebuild)
+        filter_row.addWidget(self.cmb_sort)
+        filter_row.addSpacing(16)
+        btn_random = QPushButton("🎲  랜덤 선택")
+        btn_random.setFixedHeight(30)
+        btn_random.setStyleSheet("""
+            QPushButton { background: #1a3a6a; color: #c8d8e8; border: 1px solid #1e3a5f;
+                          border-radius: 3px; font-size: 12px; padding: 0 12px; }
+            QPushButton:hover { border-color: #4fc3f7; color: #ffd700; }
+        """)
+        btn_random.clicked.connect(self._on_random)
+        filter_row.addWidget(btn_random)
         filter_row.addStretch()
 
         # 선택 표시 + 확인 버튼
@@ -110,7 +128,9 @@ class PlayerSelectScreen(QWidget):
 
     def _rebuild(self):
         race = self.cmb_race.currentText() if hasattr(self, "cmb_race") else "전체"
-        players = _load_all_players()
+        sort_idx = self.cmb_sort.currentIndex() if hasattr(self, "cmb_sort") else 0
+        sort_by = ["overall", "name"][sort_idx] if sort_idx < 2 else "overall"
+        players = _load_all_players(sort_by)
         if race != "전체":
             players = [p for p in players if p["race"] == race]
 
@@ -172,6 +192,16 @@ class PlayerSelectScreen(QWidget):
 
         for card_id, card in self._cards.items():
             card.set_selected(card_id == pid)
+
+    def _on_random(self):
+        import random as _random
+        players = _load_all_players()
+        race = self.cmb_race.currentText() if hasattr(self, "cmb_race") else "전체"
+        if race != "전체":
+            players = [p for p in players if p["race"] == race]
+        if players:
+            p = _random.choice(players)
+            self._on_card_click(p["id"])
 
     def _on_confirm(self):
         if self._selected_id is not None:

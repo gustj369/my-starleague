@@ -90,7 +90,7 @@ class HistoryScreen(QWidget):
         self.hist_table = QTableWidget()
         self.hist_table.setColumnCount(7)
         self.hist_table.setHorizontalHeaderLabels(
-            ["#", "맵", "선수 A", "선수 B", "승자", "전투력 (A vs B)", "시각"]
+            ["#", "맵", "선수 A", "선수 B", "승자", "이변", "시각"]
         )
         self.hist_table.horizontalHeader().setStretchLastSection(True)
         self.hist_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -151,21 +151,23 @@ class HistoryScreen(QWidget):
         for r in self._history:
             row = self.hist_table.rowCount()
             self.hist_table.insertRow(row)
+            upset_val = "⚡ 이변!" if r.get("is_upset") else "—"
             cols = [
                 str(r["match_id"]),
                 r["map_name"],
                 f"{r['a_name']} ({r['a_race']})",
                 f"{r['b_name']} ({r['b_race']})",
                 r["w_name"],
-                "—",   # 전투력은 MatchOutcome에 있으나 DB에 미저장 → 생략 표시
+                upset_val,
                 r["timestamp"][:16],
             ]
             for ci, val in enumerate(cols):
                 ti = QTableWidgetItem(val)
                 ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if ci == 4:
-                    # 승자 강조
                     ti.setForeground(QColor("#ffd700"))
+                elif ci == 5 and r.get("is_upset"):
+                    ti.setForeground(QColor("#FF6F00"))
                 self.hist_table.setItem(row, ci, ti)
 
     def _fill_records(self):

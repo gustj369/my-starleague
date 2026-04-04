@@ -96,8 +96,23 @@ class FinalResultScreen(QWidget):
         btn_row.addWidget(self.btn_exit)
         btn_row.addStretch()
 
+        # 토너먼트 경로 섹션
+        path_lbl_title = QLabel("토너먼트 경로")
+        path_lbl_title.setStyleSheet(
+            "color: #4fc3f7; font-weight: bold; font-size: 13px; background: transparent;"
+        )
+        self.lbl_path = QLabel("—")
+        self.lbl_path.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_path.setWordWrap(True)
+        self.lbl_path.setStyleSheet(
+            "color: #c8d8e8; font-size: 13px; background: transparent;"
+        )
+
         root.addWidget(self.lbl_achieve)
         root.addWidget(self.lbl_player)
+        root.addWidget(make_separator())
+        root.addWidget(path_lbl_title)
+        root.addWidget(self.lbl_path)
         root.addWidget(make_separator())
         root.addWidget(tbl_label)
         root.addWidget(self.table)
@@ -108,7 +123,8 @@ class FinalResultScreen(QWidget):
 
     # ──────────────────────────────────────────
     def show_result(self, achievement: str, my_player_id: int,
-                    snap_before: dict, gold_earned: int):
+                    snap_before: dict, gold_earned: int,
+                    tournament_id: int | None = None):
         """
         achievement: '우승', '준우승', '4강 탈락' 등
         snap_before: 토너먼트 시작 직전 선수 스냅샷
@@ -188,6 +204,12 @@ class FinalResultScreen(QWidget):
             f"토너먼트 획득 골드: +{gold_earned} G    |    최종 보유: {get_gold()} G"
         )
 
+        # 토너먼트 경로
+        if tournament_id:
+            self._fill_path(tournament_id, my_player_id)
+        else:
+            self.lbl_path.setText("—")
+
         # 우승 시 반짝임 애니메이션
         if achievement == "우승":
             self._flash = 0
@@ -208,3 +230,36 @@ class FinalResultScreen(QWidget):
         self.lbl_achieve.setStyleSheet(
             f"color: rgb({r},{g},0); font-size: 36px; font-weight: bold; background: transparent;"
         )
+
+    def _fill_path(self, tournament_id: int, my_player_id: int):
+        """토너먼트에서 내 경기 경로를 조회해 표시."""
+        with get_connection() as conn:
+            matches = conn.execute(
+                """SELECT tm.round, tm.player_a_id, tm.player_b_id,
+                          tm.winner_id, tm.a_wins, tm.b_wins,
+                          pa.name AS a_name, pb.name AS b_name
+                   FROM tournament_matches tm
+                   JOIN players pa ON pa.id = tm.player_a_id
+                   JOIN players pb ON pb.id = tm.player_b_id
+                   WHERE tm.tournament_id = ?
+                     AND tm.is_my_match = 1
+                     AND tm.status = 'completed'
+                   ORDER BY tm.id ASC""",
+                (tournament_id,)
+            ).fetchall()
+
+        if not matches:
+            self.lbl_path.setText("경기 기록 없음")
+            return
+
+        round_order = ["16강", "8강", "4강", "결승"]
+        parts = []
+        for m in matches:
+            opp_name = m["b_name"] if m["player_a_id"] == my_player_id else m["a_name"]
+            won = (m["winner_id"] == my_player_id)
+            score = f"{m['a_wins']}-{m['b_wins']}" if m["player_a_id"] == my_player_id else f"{m['b_wins']}-{m['a_wins']}"
+            icon = "★" if won else "✗"
+            color_tag = "승리" if won else "패배"
+            parts.append(f"{m['round']}  {icon}  vs {opp_name}  ({score})")
+
+        self.lbl_path.setText("   →   ".join(parts))

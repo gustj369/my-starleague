@@ -120,6 +120,7 @@ class SimulationScreen(QWidget):
         self._pending_my_build: str = "바위"
         self._pending_ai_build: str = "바위"
         self._pending_set_result: SetResult | None = None
+        self._my_build_history: list[str] = []
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -386,6 +387,19 @@ class SimulationScreen(QWidget):
 
         total = self._sets_to_win * 2 - 1
         self.lbl_round_set.setText(f"{round_name}  —  1세트 / {total}세트")
+        # 결승전 특별 스타일
+        if round_name == "결승":
+            self.lbl_round_set.setStyleSheet(
+                "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
+                " border: 1px solid #ffd700; border-radius: 4px; padding: 2px 10px;"
+            )
+            self.lbl_rival_badge.setText(
+                (self.lbl_rival_badge.text() + "  " if self.lbl_rival_badge.text() else "") + "★ 결승전 ★"
+            )
+        else:
+            self.lbl_round_set.setStyleSheet(
+                "color: #4fc3f7; font-size: 16px; font-weight: bold; background: transparent;"
+            )
         self._update_score()
         self._clear_commentary()
         self.lbl_set_result.setText("")
@@ -434,6 +448,15 @@ class SimulationScreen(QWidget):
         self.lbl_round_set.setText(
             f"{self._round_name}  —  {set_num}세트 / {total}세트"
         )
+        if self._round_name == "결승":
+            self.lbl_round_set.setStyleSheet(
+                "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
+                " border: 1px solid #ffd700; border-radius: 4px; padding: 2px 10px;"
+            )
+        else:
+            self.lbl_round_set.setStyleSheet(
+                "color: #4fc3f7; font-size: 16px; font-weight: bold; background: transparent;"
+            )
         self._clear_commentary()
         self.lbl_set_result.setText("")
         self.btn_next.setEnabled(False)
@@ -457,9 +480,9 @@ class SimulationScreen(QWidget):
         for btn in self.build_btns:
             btn.setEnabled(False)
 
-        # AI 빌드 랜덤 선택
-        ai_build = _random.choice(BUILD_TYPES)
         self._pending_my_build = build
+        self._my_build_history.append(build)
+        ai_build = self._pick_ai_build()
         self._pending_ai_build = ai_build
 
         # 빌드 이름
@@ -492,6 +515,19 @@ class SimulationScreen(QWidget):
 
         # BUILD_REVEAL_DELAY_MS 후 시뮬레이션 진행
         QTimer.singleShot(BUILD_REVEAL_DELAY_MS, self._run_set_after_build)
+
+    def _pick_ai_build(self) -> str:
+        """AI 빌드 선택. 직전 세트에서 플레이어가 이겼으면 40% 확률로 카운터 빌드."""
+        from core.builds import RPS_WINS
+        if self._all_sets and self._my_build_history:
+            last_set = self._all_sets[-1]
+            last_my_build = self._my_build_history[-1]
+            if last_set.winner_id == self._my_id:
+                # 플레이어가 직전 세트 승리 → AI가 카운터 빌드로 맞대응
+                counter = {v: k for k, v in RPS_WINS.items()}.get(last_my_build)
+                if counter and _random.random() < 0.40:
+                    return counter
+        return _random.choice(BUILD_TYPES)
 
     # ── 빌드 확정 후 세트 시뮬레이션 ────────────────────────
     def _run_set_after_build(self):

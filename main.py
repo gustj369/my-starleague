@@ -358,7 +358,8 @@ class MainWindow(QMainWindow):
         achievement = get_elimination_round(self._tid)
         gold_earned = get_gold() - self._gold_at_start
         self.s_final.show_result(
-            achievement, self._my_id, self._player_snap_start, gold_earned
+            achievement, self._my_id, self._player_snap_start, gold_earned,
+            tournament_id=self._tid
         )
         save_tournament_result(achievement, gold_earned)
         set_current_tournament_id(None)
