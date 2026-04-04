@@ -1,4 +1,4 @@
-"""대결 시뮬레이션 — PRD v4 다전제 + 밸런스 시스템"""
+"""대결 시뮬레이션 — PRD v7 3페이즈 + 빌드 선택 시스템"""
 import random
 from dataclasses import dataclass, field
 from typing import Dict, List
@@ -10,6 +10,7 @@ from core.balance import (
     get_rival_info, calc_upset_level, calc_upset_rewards,
     calc_grade_gap_boost, roll_condition,
 )
+from core.builds import calc_build_result, BUILD_ADVANTAGE_BOOST
 
 RACE_BONUS_COL = {
     "테란":    "terran_bonus",
@@ -28,12 +29,24 @@ SETS_TO_WIN = {
 
 # ── 데이터 클래스 ──────────────────────────────────────────────
 @dataclass
+class PhaseResult:
+    phase_name: str   # "초반" / "중반" / "후반"
+    winner_id: int
+    a_power: float
+    b_power: float
+
+
+@dataclass
 class SetResult:
     set_number: int
     winner_id: int
     loser_id: int
     a_power: float
     b_power: float
+    phases: List[PhaseResult] = field(default_factory=list)
+    build_a: str = "바위"
+    build_b: str = "바위"
+    build_result: int = 0   # +1=a 빌드 승, 0=무승부, -1=b 빌드 승
 
 
 @dataclass
@@ -163,10 +176,16 @@ def simulate_set(
     b_fatigue_override: int | None = None,
     set_number: int = 1,
     series_score: tuple[int, int] = (0, 0),
+    build_a: str = "바위",
+    build_b: str = "바위",
 ) -> SetResult:
     """단일 세트 결과 반환. DB에 쓰지 않는다.
 
-    series_score: (a_wins, b_wins) — 다전제 현재 스코어, 역전 모멘텀 보정에 사용.
+    PRD v7: 초반/중반/후반 3페이즈로 세트 승패 결정.
+    - 초반: 빌드 우위 선수에게 BUILD_ADVANTAGE_BOOST
+    - 중반: 초반 승자에게 +3 모멘텀
+    - 후반: 피로도 +15 시뮬레이션 (체력 저하)
+    - 2/3 페이즈 승리 시 세트 승리
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -185,10 +204,11 @@ def simulate_set(
     rival_stat = rival_info["stat_bonus"] if rival_info else 0
     extra_luck  = rival_info["extra_luck"]  if rival_info else 0
 
-    eff_a = calc_effective(pa, ia, map_bonus_a, a_condition, rival_stat,
-                           fatigue_val=a_fatigue_override)
-    eff_b = calc_effective(pb, ib, map_bonus_b, b_condition, rival_stat,
-                           fatigue_val=b_fatigue_override)
+    a_fat = a_fatigue_override if a_fatigue_override is not None else pa.get("fatigue", 0)
+    b_fat = b_fatigue_override if b_fatigue_override is not None else pb.get("fatigue", 0)
+
+    eff_a = calc_effective(pa, ia, map_bonus_a, a_condition, rival_stat, fatigue_val=a_fat)
+    eff_b = calc_effective(pb, ib, map_bonus_b, b_condition, rival_stat, fatigue_val=b_fat)
 
     # ── 언더독 부스트 + 강자 패널티 ──────────────────────────
     a_boost = a_penalty = 0
@@ -200,13 +220,13 @@ def simulate_set(
         a_idx = GRADE_ORDER.index(a_grade)
         b_idx = GRADE_ORDER.index(b_grade)
     except ValueError:
-        a_idx = b_idx = 4  # fallback: B
+        a_idx = b_idx = 4
 
-    if a_idx > b_idx:   # a가 언더독
+    if a_idx > b_idx:
         boost, penalty = calc_grade_gap_boost(a_grade, b_grade)
         a_boost += boost
         b_penalty += penalty
-    elif b_idx > a_idx:  # b가 언더독
+    elif b_idx > a_idx:
         boost, penalty = calc_grade_gap_boost(b_grade, a_grade)
         b_boost += boost
         a_penalty += penalty
@@ -214,24 +234,71 @@ def simulate_set(
     # ── 다전제 역전 모멘텀 ────────────────────────────────────
     a_sets, b_sets = series_score
     if b_sets > a_sets:
-        a_boost += 5   # a가 뒤질 때 반격 보정
+        a_boost += 5
     elif a_sets > b_sets:
-        b_boost += 5   # b가 뒤질 때 반격 보정
+        b_boost += 5
 
-    power_a = calc_power(eff_a, a_grade, extra_luck,
-                         underdog_boost=a_boost, favorite_penalty=a_penalty)
-    power_b = calc_power(eff_b, b_grade, extra_luck,
-                         underdog_boost=b_boost, favorite_penalty=b_penalty)
+    # ── 빌드 결과 ─────────────────────────────────────────────
+    br = calc_build_result(build_a, build_b)
 
-    winner_id = player_a_id if power_a >= power_b else player_b_id
+    # ── 페이즈 1: 초반 — 빌드 우위 적용 ──────────────────────
+    p1_a_boost = a_boost + (BUILD_ADVANTAGE_BOOST if br > 0 else 0)
+    p1_b_boost = b_boost + (BUILD_ADVANTAGE_BOOST if br < 0 else 0)
+
+    p1_a = calc_power(eff_a, a_grade, extra_luck,
+                      underdog_boost=p1_a_boost, favorite_penalty=a_penalty)
+    p1_b = calc_power(eff_b, b_grade, extra_luck,
+                      underdog_boost=p1_b_boost, favorite_penalty=b_penalty)
+    p1_winner = player_a_id if p1_a >= p1_b else player_b_id
+
+    # ── 페이즈 2: 중반 — 초반 모멘텀 +3 ──────────────────────
+    p2_a_boost = a_boost + (3 if p1_winner == player_a_id else 0)
+    p2_b_boost = b_boost + (3 if p1_winner == player_b_id else 0)
+
+    p2_a = calc_power(eff_a, a_grade, extra_luck,
+                      underdog_boost=p2_a_boost, favorite_penalty=a_penalty)
+    p2_b = calc_power(eff_b, b_grade, extra_luck,
+                      underdog_boost=p2_b_boost, favorite_penalty=b_penalty)
+    p2_winner = player_a_id if p2_a >= p2_b else player_b_id
+
+    # ── 페이즈 3: 후반 — 피로도 +15 시뮬레이션 ───────────────
+    eff_a_late = calc_effective(pa, ia, map_bonus_a, a_condition, rival_stat,
+                                fatigue_val=min(100, a_fat + 15))
+    eff_b_late = calc_effective(pb, ib, map_bonus_b, b_condition, rival_stat,
+                                fatigue_val=min(100, b_fat + 15))
+
+    p3_a = calc_power(eff_a_late, a_grade, extra_luck,
+                      underdog_boost=a_boost, favorite_penalty=a_penalty)
+    p3_b = calc_power(eff_b_late, b_grade, extra_luck,
+                      underdog_boost=b_boost, favorite_penalty=b_penalty)
+    p3_winner = player_a_id if p3_a >= p3_b else player_b_id
+
+    # ── 세트 승자: 2/3 페이즈 승리 ───────────────────────────
+    a_phase_wins = sum(
+        1 for w in [p1_winner, p2_winner, p3_winner] if w == player_a_id
+    )
+    winner_id = player_a_id if a_phase_wins >= 2 else player_b_id
     loser_id  = player_b_id if winner_id == player_a_id else player_a_id
+
+    phases = [
+        PhaseResult("초반", p1_winner, round(p1_a, 2), round(p1_b, 2)),
+        PhaseResult("중반", p2_winner, round(p2_a, 2), round(p2_b, 2)),
+        PhaseResult("후반", p3_winner, round(p3_a, 2), round(p3_b, 2)),
+    ]
+
+    avg_a = round((p1_a + p2_a + p3_a) / 3, 2)
+    avg_b = round((p1_b + p2_b + p3_b) / 3, 2)
 
     return SetResult(
         set_number=set_number,
         winner_id=winner_id,
         loser_id=loser_id,
-        a_power=round(power_a, 2),
-        b_power=round(power_b, 2),
+        a_power=avg_a,
+        b_power=avg_b,
+        phases=phases,
+        build_a=build_a,
+        build_b=build_b,
+        build_result=br,
     )
 
 
@@ -326,7 +393,13 @@ def simulate_series(
     b_condition: str = "보통",
     award_gold: bool = False,
 ) -> MatchOutcome:
-    """AI 경기: 다전제 완전 자동 시뮬레이션 + DB 저장."""
+    """AI 경기: 다전제 완전 자동 시뮬레이션 + DB 저장.
+
+    PRD v7: AI 경기도 빌드를 랜덤 선택해 페이즈 시뮬레이션.
+    """
+    import random as _random
+    from core.builds import BUILD_TYPES
+
     sets_to_win = SETS_TO_WIN.get(round_name, 2)
     sets: List[SetResult] = []
     a_wins = 0
@@ -334,9 +407,16 @@ def simulate_series(
     set_num = 1
 
     while a_wins < sets_to_win and b_wins < sets_to_win:
-        s = simulate_set(player_a_id, player_b_id, map_id,
-                         a_condition, b_condition,
-                         set_number=set_num, series_score=(a_wins, b_wins))
+        ai_build_a = _random.choice(BUILD_TYPES)
+        ai_build_b = _random.choice(BUILD_TYPES)
+        s = simulate_set(
+            player_a_id, player_b_id, map_id,
+            a_condition, b_condition,
+            set_number=set_num,
+            series_score=(a_wins, b_wins),
+            build_a=ai_build_a,
+            build_b=ai_build_b,
+        )
         sets.append(s)
         if s.winner_id == player_a_id:
             a_wins += 1
@@ -352,7 +432,7 @@ def simulate_series(
     )
 
 
-# ── 하위 호환 래퍼 (기존 코드가 simulate() 를 직접 호출하는 경우) ──
+# ── 하위 호환 래퍼 ────────────────────────────────────────────
 def simulate(
     player_a_id: int,
     player_b_id: int,

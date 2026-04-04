@@ -1,7 +1,9 @@
-"""경기 시뮬레이션 화면 — 세트별 중계 텍스트 + 다전제 진행"""
+"""경기 시뮬레이션 화면 — PRD v7 빌드 선택 + 3페이즈 중계"""
+import random as _random
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QDialog, QListWidget, QListWidgetItem,
+    QFrame, QStackedWidget, QDialog, QListWidget,
     QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
@@ -14,11 +16,13 @@ from core.balance import (
     fatigue_mult, add_fatigue, GRADE_ORDER,
 )
 from core.commentary import get_set_commentary
+from core.builds import get_build_name, calc_build_result, BUILD_TYPES
 from ui.styles import GRADE_STYLE, RACE_COLORS
 from ui.widgets import make_separator
 
 COMMENTARY_DELAY_MS = 900    # 중계 한 줄 표시 간격
 SET_RESULT_DELAY_MS = 500    # 세트 결과 표시까지 딜레이
+BUILD_REVEAL_DELAY_MS = 1400  # 빌드 선택 후 시뮬레이션 진행까지 대기
 
 
 def _load_player(pid: int) -> dict:
@@ -104,13 +108,18 @@ class SimulationScreen(QWidget):
         self._sets_to_win: int = 2
         self._my_condition: str = "보통"
         self._opp_condition: str = "보통"
-        self._my_fatigue: int = 0       # in-memory (수정 가능)
+        self._my_fatigue: int = 0
+        self._my_race: str = "테란"
+        self._opp_race: str = "테란"
         self._a_wins: int = 0
         self._b_wins: int = 0
         self._all_sets: list[SetResult] = []
         self._commentary_queue: list[str] = []
         self._timer: QTimer | None = None
         self._match_over: bool = False
+        self._pending_my_build: str = "바위"
+        self._pending_ai_build: str = "바위"
+        self._pending_set_result: SetResult | None = None
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -153,21 +162,18 @@ class SimulationScreen(QWidget):
             "color: #ffd700; font-size: 26px; font-weight: bold; background: transparent;"
         )
 
-        # ── 중계 텍스트 영역 ──
-        self.commentary_frame = QFrame()
-        self.commentary_frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
-        )
-        cf_lay = QVBoxLayout(self.commentary_frame)
-        cf_lay.setContentsMargins(16, 12, 16, 12)
-        cf_lay.setSpacing(6)
+        # ── 빌드 선택 프레임 / 중계 프레임 (스택) ──
+        self.mid_stack = QStackedWidget()
 
-        self.lbl_c1 = self._commentary_label()
-        self.lbl_c2 = self._commentary_label()
-        self.lbl_c3 = self._commentary_label()
-        cf_lay.addWidget(self.lbl_c1)
-        cf_lay.addWidget(self.lbl_c2)
-        cf_lay.addWidget(self.lbl_c3)
+        # idx 0: 빌드 선택 화면
+        self.build_frame = self._make_build_frame()
+        self.mid_stack.addWidget(self.build_frame)
+
+        # idx 1: 중계 텍스트 화면
+        self.commentary_frame = self._make_commentary_frame()
+        self.mid_stack.addWidget(self.commentary_frame)
+
+        self.mid_stack.setCurrentIndex(0)
 
         # ── 세트 결과 배너 ──
         self.lbl_set_result = QLabel("")
@@ -204,7 +210,7 @@ class SimulationScreen(QWidget):
         root.addLayout(vs_row)
         root.addWidget(self.lbl_score)
         root.addWidget(make_separator())
-        root.addWidget(self.commentary_frame, 1)
+        root.addWidget(self.mid_stack, 1)
         root.addWidget(self.lbl_set_result)
         root.addWidget(make_separator())
         root.addLayout(btn_row)
@@ -247,13 +253,92 @@ class SimulationScreen(QWidget):
         lay.addWidget(fatigue)
         return frame
 
+    def _make_build_frame(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(20, 16, 20, 16)
+        lay.setSpacing(12)
+
+        title = QLabel("빌드를 선택하세요")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(
+            "color: #ffd700; font-size: 15px; font-weight: bold; background: transparent;"
+        )
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        self.build_btns: list[QPushButton] = []
+        for btype in BUILD_TYPES:
+            btn = QPushButton(btype)
+            btn.setProperty("_btype", btype)
+            btn.setMinimumHeight(56)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #0f2040; color: #c8d8e8;
+                    border: 1px solid #1e3a5f; border-radius: 5px;
+                    font-size: 12px; padding: 4px 10px;
+                }
+                QPushButton:hover {
+                    border-color: #4fc3f7; color: #ffd700; background: #0d1830;
+                }
+                QPushButton:disabled {
+                    color: #334455; border-color: #1e3a5f; background: #060c18;
+                }
+            """)
+            btn.clicked.connect(lambda _, b=btype: self._on_build_picked(b))
+            self.build_btns.append(btn)
+            btn_row.addWidget(btn)
+
+        self.lbl_build_reveal = QLabel("")
+        self.lbl_build_reveal.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_build_reveal.setWordWrap(True)
+        self.lbl_build_reveal.setStyleSheet(
+            "color: #c8d8e8; font-size: 13px; background: transparent; line-height: 1.5;"
+        )
+
+        self.lbl_build_result = QLabel("")
+        self.lbl_build_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_build_result.setStyleSheet(
+            "color: #ffd700; font-size: 14px; font-weight: bold; background: transparent;"
+        )
+
+        lay.addStretch()
+        lay.addWidget(title)
+        lay.addLayout(btn_row)
+        lay.addSpacing(8)
+        lay.addWidget(self.lbl_build_reveal)
+        lay.addWidget(self.lbl_build_result)
+        lay.addStretch()
+
+        return frame
+
+    def _make_commentary_frame(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
+        )
+        cf_lay = QVBoxLayout(frame)
+        cf_lay.setContentsMargins(16, 12, 16, 12)
+        cf_lay.setSpacing(6)
+
+        self.lbl_c1 = self._commentary_label()
+        self.lbl_c2 = self._commentary_label()
+        self.lbl_c3 = self._commentary_label()
+        cf_lay.addWidget(self.lbl_c1)
+        cf_lay.addWidget(self.lbl_c2)
+        cf_lay.addWidget(self.lbl_c3)
+
+        return frame
+
     @staticmethod
     def _commentary_label() -> QLabel:
         lbl = QLabel("")
         lbl.setWordWrap(True)
         lbl.setStyleSheet(
-            "color: #c8d8e8; font-size: 13px; background: transparent; "
-            "padding: 3px 0;"
+            "color: #c8d8e8; font-size: 13px; background: transparent; padding: 3px 0;"
         )
         return lbl
 
@@ -271,6 +356,8 @@ class SimulationScreen(QWidget):
 
         pa = _load_player(my_id)
         pb = _load_player(opp_id)
+        self._my_race = pa.get("race", "테란")
+        self._opp_race = pb.get("race", "테란")
         self._opp_condition = roll_condition(pb.get("grade", "C"))
         self._my_fatigue = pa.get("fatigue", 0)
 
@@ -292,8 +379,8 @@ class SimulationScreen(QWidget):
         self.btn_next.setEnabled(False)
         self.btn_item.setEnabled(False)
 
-        # 첫 세트 시작
-        QTimer.singleShot(300, self._start_next_set)
+        # 첫 세트: 빌드 선택 화면으로
+        QTimer.singleShot(300, self._show_build_select)
 
     # ── 패널 채우기 ──────────────────────────────────────────
     def _fill_panel(self, slot: str, player: dict, condition: str, fatigue: int):
@@ -327,8 +414,8 @@ class SimulationScreen(QWidget):
         for lbl in [self.lbl_c1, self.lbl_c2, self.lbl_c3]:
             lbl.setText("")
 
-    # ── 세트 시작 ────────────────────────────────────────────
-    def _start_next_set(self):
+    # ── 빌드 선택 화면 표시 ──────────────────────────────────
+    def _show_build_select(self):
         set_num = len(self._all_sets) + 1
         total = self._sets_to_win * 2 - 1
         self.lbl_round_set.setText(
@@ -339,29 +426,91 @@ class SimulationScreen(QWidget):
         self.btn_next.setEnabled(False)
         self.btn_item.setEnabled(False)
 
-        # 세트 시뮬레이션 (역전 모멘텀 보정 포함)
+        # 빌드 버튼 이름 업데이트 (종족별 빌드명)
+        for btn in self.build_btns:
+            btype = btn.property("_btype")
+            bname = get_build_name(self._my_race, self._opp_race, btype)
+            btn.setText(f"{btype}\n{bname}")
+            btn.setEnabled(True)
+
+        self.lbl_build_reveal.setText("")
+        self.lbl_build_result.setText("")
+        self.mid_stack.setCurrentIndex(0)
+
+    # ── 빌드 선택 처리 ───────────────────────────────────────
+    def _on_build_picked(self, build: str):
+        # 버튼 비활성화
+        for btn in self.build_btns:
+            btn.setEnabled(False)
+
+        # AI 빌드 랜덤 선택
+        ai_build = _random.choice(BUILD_TYPES)
+        self._pending_my_build = build
+        self._pending_ai_build = ai_build
+
+        # 빌드 이름
+        my_bname = get_build_name(self._my_race, self._opp_race, build)
+        ai_bname = get_build_name(self._opp_race, self._my_race, ai_build)
+
+        # 빌드 공개
+        self.lbl_build_reveal.setText(
+            f"내 선수  :  {my_bname}  ({build})\n"
+            f"상  대   :  {ai_bname}  ({ai_build})"
+        )
+
+        # 결과 뱃지
+        br = calc_build_result(build, ai_build)
+        if br > 0:
+            self.lbl_build_result.setText("✔ 빌드 우위 — 초반 유리!")
+            self.lbl_build_result.setStyleSheet(
+                "color: #4fc3f7; font-size: 14px; font-weight: bold; background: transparent;"
+            )
+        elif br < 0:
+            self.lbl_build_result.setText("✘ 빌드 열세 — 초반 불리...")
+            self.lbl_build_result.setStyleSheet(
+                "color: #EF9A9A; font-size: 14px; font-weight: bold; background: transparent;"
+            )
+        else:
+            self.lbl_build_result.setText("▶ 무승부 — 순수 실력 대결!")
+            self.lbl_build_result.setStyleSheet(
+                "color: #ffd700; font-size: 14px; font-weight: bold; background: transparent;"
+            )
+
+        # BUILD_REVEAL_DELAY_MS 후 시뮬레이션 진행
+        QTimer.singleShot(BUILD_REVEAL_DELAY_MS, self._run_set_after_build)
+
+    # ── 빌드 확정 후 세트 시뮬레이션 ────────────────────────
+    def _run_set_after_build(self):
+        # 중계 화면으로 전환
+        self.mid_stack.setCurrentIndex(1)
+        self._clear_commentary()
+
+        set_num = len(self._all_sets) + 1
+
         result = simulate_set(
             self._my_id, self._opp_id, self._map_id,
             self._my_condition, self._opp_condition,
             a_fatigue_override=self._my_fatigue,
             set_number=set_num,
             series_score=(self._a_wins, self._b_wins),
+            build_a=self._pending_my_build,
+            build_b=self._pending_ai_build,
         )
         self._all_sets.append(result)
 
-        # 스코어 업데이트
         if result.winner_id == self._my_id:
             self._a_wins += 1
         else:
             self._b_wins += 1
 
-        # 중계 문구 생성
+        # 중계 문구 생성 (페이즈 정보 포함)
         pa = _load_player(self._my_id)
         pb = _load_player(self._opp_id)
         lines = get_set_commentary(
             pa.get("name", "A"), pb.get("name", "B"),
             result.a_power, result.b_power,
             result.winner_id, self._my_id,
+            phases=result.phases,
         )
         self._commentary_queue = lines[:]
         self._comment_labels = [self.lbl_c1, self.lbl_c2, self.lbl_c3]
@@ -383,7 +532,6 @@ class SimulationScreen(QWidget):
             )
             self._comment_idx += 1
         else:
-            # 모든 문구 표시 완료 → 세트 결과 표시
             self._timer.stop()
             QTimer.singleShot(SET_RESULT_DELAY_MS, self._show_set_result)
 
@@ -395,7 +543,7 @@ class SimulationScreen(QWidget):
         w_name = pa.get("name") if result.winner_id == self._my_id else pb.get("name")
         set_num = result.set_number
 
-        # 이변/모멘텀 배지 계산
+        # 이변/모멘텀 배지
         badge = ""
         a_grade = pa.get("grade", "C")
         b_grade = pb.get("grade", "C")
@@ -409,7 +557,6 @@ class SimulationScreen(QWidget):
         grade_diff = abs(a_idx - b_idx)
         underdog_won = (winner_is_a and a_idx > b_idx) or (not winner_is_a and b_idx > a_idx)
 
-        # 역전 모멘텀: 뒤지다가 세트를 따낸 경우
         a_before = self._a_wins - (1 if winner_is_a else 0)
         b_before = self._b_wins - (1 if not winner_is_a else 0)
         comeback = (winner_is_a and b_before > a_before) or (not winner_is_a and a_before > b_before)
@@ -433,11 +580,10 @@ class SimulationScreen(QWidget):
             self.btn_next.setEnabled(True)
             self.btn_item.setEnabled(False)
         else:
-            # 내 선수가 이 세트를 졌고 긴급 아이템이 있으면 버튼 활성화
             my_lost_set = (result.winner_id != self._my_id)
             emergency_items = _load_emergency_items(self._my_id)
             self.btn_item.setEnabled(my_lost_set and len(emergency_items) > 0)
-            self.btn_next.setText(f"▶  {set_num + 1}세트 시작")
+            self.btn_next.setText(f"▶  {set_num + 1}세트 빌드 선택")
             self.btn_next.setEnabled(True)
 
     # ── 긴급 아이템 사용 ─────────────────────────────────────
@@ -455,16 +601,13 @@ class SimulationScreen(QWidget):
             return
         it = items[idx]
 
-        # 아이템 효과 적용 (in-memory)
         if it.get("condition_up", 0):
             self._my_condition = apply_condition_item(self._my_condition)
-            # 패널 업데이트
             pa = _load_player(self._my_id)
             self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
 
         if it.get("fatigue_recover", 0):
             self._my_fatigue = max(0, self._my_fatigue - it["fatigue_recover"])
-            # DB 피로도 감소
             with get_connection() as conn:
                 conn.execute(
                     "UPDATE players SET fatigue = MAX(0, fatigue - ?) WHERE id = ?",
@@ -474,7 +617,6 @@ class SimulationScreen(QWidget):
             pa = _load_player(self._my_id)
             self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
 
-        # 아이템 소진 (player_items 1개 삭제)
         with get_connection() as conn:
             conn.execute("DELETE FROM player_items WHERE id = ?", (it["pi_id"],))
             conn.commit()
@@ -486,7 +628,7 @@ class SimulationScreen(QWidget):
         if self._match_over:
             self._finalize()
         else:
-            self._start_next_set()
+            self._show_build_select()
 
     # ── 경기 종료 처리 ───────────────────────────────────────
     def _finalize(self):
