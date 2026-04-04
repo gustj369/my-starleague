@@ -132,7 +132,6 @@ class MainMenuScreen(QWidget):
         bg_layout.addWidget(credit)
 
         root.addWidget(bg)
-        self.refresh()
 
     def refresh(self):
         """세이브 상태에 따라 버튼 레이블과 요약 정보를 갱신"""
