@@ -2,7 +2,7 @@
 import math
 from pathlib import Path
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QWidget
-from PyQt6.QtCore import Qt, QPointF, QRectF
+from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPolygonF, QFont, QPixmap
 
 from core.grade import GRADE_COLORS
@@ -33,14 +33,14 @@ def make_player_avatar(name: str, size: int = 90) -> QLabel:
         )
         lbl.setPixmap(px)
         lbl.setStyleSheet(
-            f"border-radius: {size//2}px; background: #0d1525; border: 1px solid #1e3a5f;"
+            f"border-radius: {size//2}px; background: #FFFFFF; border: 2px solid #E9ECEF;"
         )
     else:
         initial = name[0] if name else "?"
         lbl.setText(initial)
         lbl.setStyleSheet(
-            f"background: #1e3a5f; color: #ffd700; font-size: {size//3}px; "
-            f"font-weight: bold; border-radius: {size//2}px; border: 1px solid #1e3a5f;"
+            f"background: #EEF2FF; color: #5B6CF6; font-size: {size//3}px; "
+            f"font-weight: bold; border-radius: {size//2}px; border: 1px solid #C5D0E8;"
         )
     return lbl
 
@@ -51,7 +51,7 @@ STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 class RadarChart(QWidget):
     """6각형 레이더 차트"""
 
-    def __init__(self, values: list[int], color: str = "#4fc3f7", parent=None):
+    def __init__(self, values: list[int], color: str = "#5B6CF6", parent=None):
         super().__init__(parent)
         self._values = values       # 6개 정수, 0~100
         self._color  = QColor(color)
@@ -70,7 +70,7 @@ class RadarChart(QWidget):
 
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(0, 0, w, h, QColor("#0d1525"))
+        p.fillRect(0, 0, w, h, QColor("#FFFFFF"))
 
         # 격자 (5단계)
         for level in range(1, 6):
@@ -79,13 +79,13 @@ class RadarChart(QWidget):
                            cy - r * frac * math.sin(a))
                    for a in angles]
             poly = QPolygonF(pts)
-            pen = QPen(QColor("#1e3a5f"), 1)
+            pen = QPen(QColor("#E9ECEF"), 1)
             p.setPen(pen)
             p.drawPolygon(poly)
 
         # 축선
         for a in angles:
-            p.setPen(QPen(QColor("#1e3a5f"), 1))
+            p.setPen(QPen(QColor("#E9ECEF"), 1))
             p.drawLine(QPointF(cx, cy),
                        QPointF(cx + r * math.cos(a), cy - r * math.sin(a)))
 
@@ -108,7 +108,7 @@ class RadarChart(QWidget):
             p.drawEllipse(pt, 3, 3)
 
         # 라벨
-        p.setPen(QPen(QColor("#c8d8e8")))
+        p.setPen(QPen(QColor("#868E96")))
         font = QFont("맑은 고딕", 8)
         p.setFont(font)
         label_r = r + 16
@@ -170,11 +170,11 @@ class PlayerCard(QFrame):
         # overall
         self.lbl_overall = QLabel(f"Overall {self._player['overall']:.1f}")
         self.lbl_overall.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_overall.setStyleSheet("color: #7a9ab8; font-size: 11px; background: transparent;")
+        self.lbl_overall.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
 
         # 레이더 차트
         vals = [self._player[k] for k in STAT_KEYS]
-        color = RACE_COLORS.get(self._player["race"], "#4fc3f7")
+        color = RACE_COLORS.get(self._player["race"], "#5B6CF6")
         self.radar = RadarChart(vals, color)
 
         layout.addLayout(avatar_row)
@@ -188,26 +188,29 @@ class PlayerCard(QFrame):
         self._refresh_style()
 
     def _refresh_style(self):
+        from ui.styles import RACE_COLORS
+        race_color = RACE_COLORS.get(self._player.get("race", "테란"), "#5B6CF6")
         if self._selected:
             self.setProperty("class", "card-selected")
-            self.setStyleSheet("""
-                QFrame {
-                    background-color: #0f2040;
-                    border: 2px solid #ffd700;
-                    border-radius: 6px;
-                }
+            self.setStyleSheet(f"""
+                QFrame {{
+                    background-color: #EEF2FF;
+                    border: 2px solid #5B6CF6;
+                    border-radius: 16px;
+                }}
             """)
         else:
             self.setProperty("class", "card")
-            self.setStyleSheet("""
-                QFrame {
-                    background-color: #0d1525;
-                    border: 1px solid #1e3a5f;
-                    border-radius: 6px;
-                }
-                QFrame:hover {
-                    border-color: #4fc3f7;
-                }
+            self.setStyleSheet(f"""
+                QFrame {{
+                    background-color: #FFFFFF;
+                    border: 1px solid {race_color}55;
+                    border-radius: 16px;
+                }}
+                QFrame:hover {{
+                    border: 1px solid {race_color};
+                    background-color: #FAFAFA;
+                }}
             """)
 
     def refresh(self, player: dict):
@@ -223,7 +226,7 @@ class PlayerCard(QFrame):
 class StatBar(QWidget):
     """단일 능력치 레이블 + 바 표시"""
 
-    def __init__(self, label: str, value: int, color: str = "#4fc3f7", parent=None):
+    def __init__(self, label: str, value: int, color: str = "#5B6CF6", parent=None):
         super().__init__(parent)
         self._value = value
         self._color = QColor(color)
@@ -235,7 +238,7 @@ class StatBar(QWidget):
 
         lbl = QLabel(label)
         lbl.setFixedWidth(50)
-        lbl.setStyleSheet("color: #7a9ab8; font-size: 11px; background: transparent;")
+        lbl.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
 
         self._bar = _Bar(value, color)
         self._bar.setMinimumHeight(10)
@@ -243,50 +246,98 @@ class StatBar(QWidget):
         self._val_lbl = QLabel(str(value))
         self._val_lbl.setFixedWidth(30)
         self._val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self._val_lbl.setStyleSheet("color: #c8d8e8; font-size: 11px; background: transparent;")
+        self._val_lbl.setStyleSheet("color: #212529; font-size: 11px; background: transparent;")
 
         row.addWidget(lbl)
         row.addWidget(self._bar, 1)
         row.addWidget(self._val_lbl)
 
-    def set_value(self, value: int, delta: int = 0):
-        self._value = value
-        self._bar.set_value(value)
-        text = str(value)
+    def set_value(self, new_val: int, delta: int = 0):
+        # 레이블 스타일 / 텍스트 즉시 반영
+        text = str(new_val)
         if delta > 0:
-            self._val_lbl.setStyleSheet("color: #81C784; font-size: 11px; font-weight: bold; background: transparent;")
+            self._val_lbl.setStyleSheet("color: #51CF66; font-size: 11px; font-weight: bold; background: transparent;")
             text += f" (+{delta})"
         elif delta < 0:
-            self._val_lbl.setStyleSheet("color: #EF9A9A; font-size: 11px; font-weight: bold; background: transparent;")
+            self._val_lbl.setStyleSheet("color: #FF6B6B; font-size: 11px; font-weight: bold; background: transparent;")
             text += f" ({delta})"
         else:
-            self._val_lbl.setStyleSheet("color: #c8d8e8; font-size: 11px; background: transparent;")
+            self._val_lbl.setStyleSheet("color: #212529; font-size: 11px; background: transparent;")
         self._val_lbl.setText(text)
+        # 바 애니메이션 위임
+        self._value = new_val
+        self._bar.animate_to(new_val)
 
 
 class _Bar(QWidget):
+    _ANIM_FRAMES = 15
+    _ANIM_INTERVAL_MS = 30
+
     def __init__(self, value: int, color: str, parent=None):
         super().__init__(parent)
-        self._value = value
+        self._value = value          # 현재 표시 중인 값 (애니메이션 중에는 중간값)
         self._color = QColor(color)
         self.setFixedHeight(10)
 
+        # 애니메이션 상태
+        self._anim_start = value
+        self._anim_target = value
+        self._anim_frame = 0
+        self._anim_timer = QTimer(self)
+        self._anim_timer.timeout.connect(self._anim_tick)
+
     def set_value(self, value: int):
+        """애니메이션 없이 즉시 값을 설정한다."""
+        self._anim_timer.stop()
         self._value = value
+        self._anim_start = value
+        self._anim_target = value
+        self._anim_frame = 0
         self.update()
 
+    def animate_to(self, new_val: int):
+        """현재 값에서 new_val 까지 부드럽게 이동한다."""
+        self._anim_start = self._value
+        self._anim_target = new_val
+        self._anim_frame = 0
+        self._anim_timer.start(self._ANIM_INTERVAL_MS)
+
+    def _anim_tick(self):
+        self._anim_frame += 1
+        progress = self._anim_frame / self._ANIM_FRAMES
+        self._value = int(
+            self._anim_start + (self._anim_target - self._anim_start) * progress
+        )
+        self.update()
+        if self._anim_frame >= self._ANIM_FRAMES:
+            self._value = self._anim_target
+            self._anim_timer.stop()
+            self.update()
+
     def paintEvent(self, event):
+        from PyQt6.QtGui import QLinearGradient
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
         # 배경
-        p.setBrush(QBrush(QColor("#1e3a5f")))
+        p.setBrush(QBrush(QColor("#E9ECEF")))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawRoundedRect(0, 0, w, h, 4, 4)
-        # 채우기
+        # 그라데이션 채우기
         fill_w = int(w * self._value / 100)
         if fill_w > 0:
-            p.setBrush(QBrush(self._color))
+            grad = QLinearGradient(0, 0, fill_w, 0)
+            base = self._color
+            # 밝은 버전 계산
+            c = QColor(base)
+            brighter = QColor(
+                min(255, c.red() + 50),
+                min(255, c.green() + 50),
+                min(255, c.blue() + 50),
+            )
+            grad.setColorAt(0.0, base)
+            grad.setColorAt(1.0, brighter)
+            p.setBrush(QBrush(grad))
             p.drawRoundedRect(0, 0, fill_w, h, 4, 4)
         p.end()
 
@@ -294,5 +345,5 @@ class _Bar(QWidget):
 def make_separator() -> QFrame:
     sep = QFrame()
     sep.setFrameShape(QFrame.Shape.HLine)
-    sep.setStyleSheet("color: #1e3a5f;")
+    sep.setStyleSheet("color: #E9ECEF;")
     return sep

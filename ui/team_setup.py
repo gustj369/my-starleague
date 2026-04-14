@@ -44,7 +44,7 @@ class TeamSetupScreen(QWidget):
         hdr = QHBoxLayout()
         title = QLabel("팀 편성")
         title.setProperty("class", "title")
-        title.setStyleSheet("color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;")
+        title.setStyleSheet("color: #212529; font-size: 22px; font-weight: bold; background: transparent;")
 
         self.btn_back = QPushButton("← 메인 메뉴")
         self.btn_back.clicked.connect(self.sig_back)
@@ -62,7 +62,7 @@ class TeamSetupScreen(QWidget):
         filter_row.addStretch()
 
         hint = QLabel("선수를 클릭하여 A / B 슬롯에 배정합니다. (첫 클릭 → A, 두 번째 클릭 → B)")
-        hint.setStyleSheet("color: #4fc3f7; font-size: 11px; background: transparent;")
+        hint.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
         filter_row.addWidget(hint)
 
         # 선택 현황
@@ -101,19 +101,19 @@ class TeamSetupScreen(QWidget):
     @staticmethod
     def _slot_label(slot: str) -> QLabel:
         lbl = QLabel(f"미선택")
-        lbl.setStyleSheet("color: #4a6a8a; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet("color: #868E96; font-size: 13px; background: transparent;")
         return lbl
 
     @staticmethod
     def _slot_box(title: str, content_label: QLabel) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet("""
-            QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 4px; }
+            QFrame { background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 6px; }
         """)
         lay = QHBoxLayout(frame)
         lay.setContentsMargins(10, 6, 10, 6)
         t = QLabel(f"[{title}]")
-        t.setStyleSheet("color: #ffd700; font-weight: bold; font-size: 13px; background: transparent;")
+        t.setStyleSheet("color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;")
         lay.addWidget(t)
         lay.addWidget(content_label)
         return frame
@@ -158,11 +158,11 @@ class TeamSetupScreen(QWidget):
         if player_id == self._selected_a:
             self._selected_a = None
             self.lbl_sel_a.setText("미선택")
-            self.lbl_sel_a.setStyleSheet("color: #4a6a8a; font-size: 13px; background: transparent;")
+            self.lbl_sel_a.setStyleSheet("color: #868E96; font-size: 13px; background: transparent;")
         elif player_id == self._selected_b:
             self._selected_b = None
             self.lbl_sel_b.setText("미선택")
-            self.lbl_sel_b.setStyleSheet("color: #4a6a8a; font-size: 13px; background: transparent;")
+            self.lbl_sel_b.setStyleSheet("color: #868E96; font-size: 13px; background: transparent;")
         elif self._selected_a is None:
             self._selected_a = player_id
             self.lbl_sel_a.setText(f"{player['name']} ({player['race']})")
@@ -194,7 +194,7 @@ class TeamSetupScreen(QWidget):
         self._selected_b = None
         self.lbl_sel_a.setText("미선택")
         self.lbl_sel_b.setText("미선택")
-        self.lbl_sel_a.setStyleSheet("color: #4a6a8a; font-size: 13px; background: transparent;")
-        self.lbl_sel_b.setStyleSheet("color: #4a6a8a; font-size: 13px; background: transparent;")
+        self.lbl_sel_a.setStyleSheet("color: #868E96; font-size: 13px; background: transparent;")
+        self.lbl_sel_b.setStyleSheet("color: #868E96; font-size: 13px; background: transparent;")
         self.btn_proceed.setEnabled(False)
         self._load_players()

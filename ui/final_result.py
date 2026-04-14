@@ -14,11 +14,11 @@ STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
 
 ACHIEVEMENT_COLOR = {
-    "우승":     "#ffd700",
-    "준우승":   "#C0C0C0",
-    "4강 탈락": "#4fc3f7",
-    "8강 탈락": "#81C784",
-    "16강 탈락":"#EF9A9A",
+    "우승":     "#F59E0B",
+    "준우승":   "#868E96",
+    "4강 탈락": "#5B6CF6",
+    "8강 탈락": "#51CF66",
+    "16강 탈락":"#FF6B6B",
 }
 
 
@@ -40,19 +40,19 @@ class FinalResultScreen(QWidget):
         self.lbl_achieve = QLabel("")
         self.lbl_achieve.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_achieve.setStyleSheet(
-            "color: #ffd700; font-size: 36px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 36px; font-weight: bold; background: transparent;"
         )
 
         self.lbl_player = QLabel("")
         self.lbl_player.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_player.setStyleSheet(
-            "color: #c8d8e8; font-size: 18px; background: transparent;"
+            "color: #868E96; font-size: 18px; background: transparent;"
         )
 
         # 능력치 비교 테이블
         tbl_label = QLabel("능력치 변동 (토너먼트 전 → 후)")
         tbl_label.setStyleSheet(
-            "color: #4fc3f7; font-weight: bold; font-size: 13px; background: transparent;"
+            "color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;"
         )
 
         self.table = QTableWidget()
@@ -75,7 +75,7 @@ class FinalResultScreen(QWidget):
         self.lbl_gold = QLabel("")
         self.lbl_gold.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_gold.setStyleSheet(
-            "color: #ffd700; font-weight: bold; font-size: 15px; background: transparent;"
+            "color: #F59E0B; font-weight: bold; font-size: 15px; background: transparent;"
         )
 
         # 버튼
@@ -99,14 +99,24 @@ class FinalResultScreen(QWidget):
         # 토너먼트 경로 섹션
         path_lbl_title = QLabel("토너먼트 경로")
         path_lbl_title.setStyleSheet(
-            "color: #4fc3f7; font-weight: bold; font-size: 13px; background: transparent;"
+            "color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;"
         )
         self.lbl_path = QLabel("—")
         self.lbl_path.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_path.setWordWrap(True)
         self.lbl_path.setStyleSheet(
-            "color: #c8d8e8; font-size: 13px; background: transparent;"
+            "color: #868E96; font-size: 13px; background: transparent;"
         )
+
+        # 성장 이벤트 표시 라벨
+        self.lbl_growth = QLabel("")
+        self.lbl_growth.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_growth.setWordWrap(True)
+        self.lbl_growth.setStyleSheet(
+            "color: #5B6CF6; font-size: 13px; font-weight: bold; background: #EEF2FF; "
+            "border: 1px solid #C5C8FF; border-radius: 6px; padding: 8px;"
+        )
+        self.lbl_growth.setVisible(False)
 
         root.addWidget(self.lbl_achieve)
         root.addWidget(self.lbl_player)
@@ -119,6 +129,7 @@ class FinalResultScreen(QWidget):
         root.addWidget(self.lbl_grade)
         root.addWidget(make_separator())
         root.addWidget(self.lbl_gold)
+        root.addWidget(self.lbl_growth)
         root.addLayout(btn_row)
 
     # ──────────────────────────────────────────
@@ -131,7 +142,7 @@ class FinalResultScreen(QWidget):
         """
         self._snap = snap_before
 
-        color = ACHIEVEMENT_COLOR.get(achievement, "#c8d8e8")
+        color = ACHIEVEMENT_COLOR.get(achievement, "#868E96")
         self.lbl_achieve.setText(achievement)
         self.lbl_achieve.setStyleSheet(
             f"color: {color}; font-size: 36px; font-weight: bold; background: transparent;"
@@ -164,9 +175,9 @@ class FinalResultScreen(QWidget):
                 ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if ci == 3:
                     if delta > 0:
-                        ti.setForeground(QColor("#81C784"))
+                        ti.setForeground(QColor("#51CF66"))
                     elif delta < 0:
-                        ti.setForeground(QColor("#EF9A9A"))
+                        ti.setForeground(QColor("#FF6B6B"))
                 self.table.setItem(i, ci, ti)
 
         # OVR 행
@@ -180,7 +191,7 @@ class FinalResultScreen(QWidget):
             ti = QTableWidgetItem(val)
             ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if ci == 3:
-                ti.setForeground(QColor("#81C784" if dov >= 0 else "#EF9A9A"))
+                ti.setForeground(QColor("#51CF66" if dov >= 0 else "#FF6B6B"))
             self.table.setItem(len(STAT_KEYS), ci, ti)
 
         # 등급 행 (빈 행으로 처리)
@@ -210,6 +221,10 @@ class FinalResultScreen(QWidget):
         else:
             self.lbl_path.setText("—")
 
+        # 성장 이벤트 초기화
+        self.lbl_growth.setVisible(False)
+        self.lbl_growth.setText("")
+
         # 우승 시 반짝임 애니메이션
         if achievement == "우승":
             self._flash = 0
@@ -226,10 +241,19 @@ class FinalResultScreen(QWidget):
         elif self._flash <= 0:
             self._fd = 1
         r = min(255, 200 + self._flash)
-        g = min(255, 170 + self._flash // 2)
+        g = min(255, 130 + self._flash // 2)
         self.lbl_achieve.setStyleSheet(
             f"color: rgb({r},{g},0); font-size: 36px; font-weight: bold; background: transparent;"
         )
+
+    def show_growth(self, events: list):
+        """성장 이벤트 결과를 화면에 표시"""
+        if not events:
+            return
+        parts = [f"{ev['stat_label']} +{ev['delta']}" for ev in events]
+        text = "🌱  성장 이벤트:  " + "  |  ".join(parts)
+        self.lbl_growth.setText(text)
+        self.lbl_growth.setVisible(True)
 
     def _fill_path(self, tournament_id: int, my_player_id: int):
         """토너먼트에서 내 경기 경로를 조회해 표시."""

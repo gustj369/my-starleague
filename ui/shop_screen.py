@@ -77,7 +77,7 @@ class ShopScreen(QWidget):
         hdr = QHBoxLayout()
         title = QLabel("아이템 상점")
         title.setStyleSheet(
-            "color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 22px; font-weight: bold; background: transparent;"
         )
         self.btn_back = QPushButton("← 돌아가기")
         self.btn_back.clicked.connect(self.sig_back)
@@ -85,7 +85,7 @@ class ShopScreen(QWidget):
         hdr.addStretch()
         self.lbl_gold = QLabel("")
         self.lbl_gold.setStyleSheet(
-            "color: #ffd700; font-weight: bold; font-size: 15px; background: transparent;"
+            "color: #F59E0B; font-weight: bold; font-size: 15px; background: transparent;"
         )
         hdr.addWidget(self.lbl_gold)
         hdr.addSpacing(16)
@@ -95,14 +95,16 @@ class ShopScreen(QWidget):
         self.tab_bar = QTabBar()
         self.tab_bar.setStyleSheet("""
             QTabBar::tab {
-                background: #0d1525; color: #7a9ab8;
-                border: 1px solid #1e3a5f; border-radius: 3px;
-                padding: 4px 16px; margin-right: 4px; font-size: 12px;
+                background: #F8F9FA; color: #868E96;
+                border: none; border-bottom: 2px solid transparent;
+                padding: 6px 18px; margin-right: 4px; font-size: 12px;
+                font-weight: 600;
             }
             QTabBar::tab:selected {
-                background: #1e3a5f; color: #ffd700; border-color: #4fc3f7;
+                background: #F8F9FA; color: #5B6CF6;
+                border-bottom: 2px solid #5B6CF6;
             }
-            QTabBar::tab:hover { color: #4fc3f7; }
+            QTabBar::tab:hover { color: #5B6CF6; }
         """)
         for t in ITEM_TYPES:
             self.tab_bar.addTab(t)
@@ -195,15 +197,15 @@ class ShopScreen(QWidget):
                 ti = QTableWidgetItem(str(val))
                 ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if ci >= 4 and isinstance(val, int) and val > 0:
-                    ti.setForeground(QColor("#81C784"))
+                    ti.setForeground(QColor("#51CF66"))
                     ti.setText(f"+{val}")
                 # 유형 컬럼 색상
                 if ci == 1:
                     type_color = {
-                        "능력치": "#4fc3f7",
-                        "컨디션": "#81C784",
-                        "피로회복": "#FFB74D",
-                    }.get(itype, "#c8d8e8")
+                        "능력치": "#5B6CF6",
+                        "컨디션": "#51CF66",
+                        "피로회복": "#F59E0B",
+                    }.get(itype, "#212529")
                     ti.setForeground(QColor(type_color))
                 self.table.setItem(row, ci, ti)
 

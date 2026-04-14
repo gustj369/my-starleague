@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor
 from database.db import get_connection
 from ui.widgets import RadarChart, StatBar, make_separator
 from ui.styles import GRADE_STYLE, RACE_COLORS
+from ui.player_profile_dialog import PlayerProfileDialog
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
@@ -49,7 +50,7 @@ class PlayerManagerScreen(QWidget):
         # 헤더
         hdr = QHBoxLayout()
         title = QLabel("선수 관리")
-        title.setStyleSheet("color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;")
+        title.setStyleSheet("color: #212529; font-size: 22px; font-weight: bold; background: transparent;")
         self.btn_back = QPushButton("← 돌아가기")
         self.btn_back.clicked.connect(self.sig_back)
         hdr.addWidget(title)
@@ -75,6 +76,7 @@ class PlayerManagerScreen(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         self.table.clicked.connect(self._on_row_click)
+        self.table.doubleClicked.connect(self._on_row_double_click)
         self.table.setColumnWidth(0, 80)
         self.table.setColumnWidth(1, 70)
         self.table.setColumnWidth(2, 50)
@@ -116,11 +118,16 @@ class PlayerManagerScreen(QWidget):
 
         self.lbl_items_title = QLabel("보유 아이템")
         self.lbl_items_title.setStyleSheet(
-            "color: #4fc3f7; font-weight: bold; font-size: 13px; background: transparent;"
+            "color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;"
         )
         self.lbl_items = QLabel("없음")
-        self.lbl_items.setStyleSheet("color: #7a9ab8; font-size: 12px; background: transparent;")
+        self.lbl_items.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
         self.lbl_items.setWordWrap(True)
+
+        self.btn_profile = QPushButton("📋  선수 프로필 보기")
+        self.btn_profile.setEnabled(False)
+        self.btn_profile.setMinimumHeight(34)
+        self.btn_profile.clicked.connect(self._on_show_profile)
 
         detail_lay.addWidget(self.lbl_detail_name)
         detail_lay.addWidget(self.lbl_detail_grade)
@@ -130,6 +137,8 @@ class PlayerManagerScreen(QWidget):
         detail_lay.addWidget(make_separator())
         detail_lay.addWidget(self.lbl_items_title)
         detail_lay.addWidget(self.lbl_items)
+        detail_lay.addSpacing(8)
+        detail_lay.addWidget(self.btn_profile)
         detail_lay.addStretch()
 
         right_scroll.setWidget(self.detail)
@@ -160,6 +169,8 @@ class PlayerManagerScreen(QWidget):
                     item.setForeground(QColor(GRADE_COLORS.get(p["grade"], "#ffffff")))
                 elif col_idx == 1: # 종족 색상
                     item.setForeground(QColor(RACE_COLORS.get(p["race"], "#ffffff")))
+                elif col_idx == 3:   # OVR
+                    item.setForeground(QColor("#5B6CF6"))
                 self.table.setItem(row, col_idx, item)
 
         if self._selected_id:
@@ -171,6 +182,22 @@ class PlayerManagerScreen(QWidget):
             player = self._players[row]
             self._selected_id = player["id"]
             self._show_detail(player["id"])
+
+    def _on_show_profile(self):
+        if self._selected_id is None:
+            return
+        player = next((p for p in self._players if p["id"] == self._selected_id), None)
+        if player:
+            dlg = PlayerProfileDialog(player, self)
+            dlg.exec()
+
+    def _on_row_double_click(self, index):
+        row = index.row()
+        if 0 <= row < len(self._players):
+            player = self._players[row]
+            self._selected_id = player["id"]
+            dlg = PlayerProfileDialog(player, self)
+            dlg.exec()
 
     def _show_detail(self, player_id: int):
         player = next((p for p in self._players if p["id"] == player_id), None)
@@ -190,7 +217,7 @@ class PlayerManagerScreen(QWidget):
 
         vals = [player[k] for k in STAT_KEYS]
         self.radar.set_values(vals)
-        self.radar._color = QColor(RACE_COLORS.get(player["race"], "#4fc3f7"))
+        self.radar._color = QColor(RACE_COLORS.get(player["race"], "#5B6CF6"))
         self.radar.update()
 
         for key in STAT_KEYS:
@@ -202,3 +229,4 @@ class PlayerManagerScreen(QWidget):
         else:
             text = "없음"
         self.lbl_items.setText(text)
+        self.btn_profile.setEnabled(True)

@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from database.db import get_connection
 from ui.widgets import PlayerCard, make_separator
 from ui.styles import RACE_COLORS, GRADE_STYLE
+from core.player_data import get_style
 
 
 def _load_all_players(sort_by: str = "overall") -> list[dict]:
@@ -41,7 +42,7 @@ class PlayerSelectScreen(QWidget):
 
         title = QLabel("내 선수 선택")
         title.setStyleSheet(
-            "color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 22px; font-weight: bold; background: transparent;"
         )
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -55,7 +56,7 @@ class PlayerSelectScreen(QWidget):
             "나머지 15명은 AI가 자동 조작합니다."
         )
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setStyleSheet("color: #7a9ab8; font-size: 12px; background: transparent;")
+        hint.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
 
         # 필터
         filter_row = QHBoxLayout()
@@ -75,19 +76,26 @@ class PlayerSelectScreen(QWidget):
         btn_random = QPushButton("🎲  랜덤 선택")
         btn_random.setFixedHeight(30)
         btn_random.setStyleSheet("""
-            QPushButton { background: #1a3a6a; color: #c8d8e8; border: 1px solid #1e3a5f;
-                          border-radius: 3px; font-size: 12px; padding: 0 12px; }
-            QPushButton:hover { border-color: #4fc3f7; color: #ffd700; }
+            QPushButton { background: #EEF2FF; color: #5B6CF6; border: 1px solid #C5C8FF;
+                          border-radius: 4px; font-size: 12px; padding: 0 12px; }
+            QPushButton:hover { background: #5B6CF6; color: #FFFFFF; border-color: #5B6CF6; }
         """)
         btn_random.clicked.connect(self._on_random)
         filter_row.addWidget(btn_random)
         filter_row.addStretch()
 
+        # 선수 스타일 표시
+        self.lbl_style = QLabel("")
+        self.lbl_style.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_style.setStyleSheet(
+            "color: #868E96; font-size: 12px; font-style: italic; background: transparent;"
+        )
+
         # 선택 표시 + 확인 버튼
         sel_row = QHBoxLayout()
         self.lbl_selected = QLabel("선수를 선택하세요")
         self.lbl_selected.setStyleSheet(
-            "color: #4a6a8a; font-size: 14px; background: transparent;"
+            "color: #868E96; font-size: 14px; background: transparent;"
         )
         self.lbl_selected.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -114,6 +122,7 @@ class PlayerSelectScreen(QWidget):
         root.addWidget(make_separator())
         root.addWidget(hint)
         root.addLayout(filter_row)
+        root.addWidget(self.lbl_style)
         root.addWidget(make_separator())
         root.addLayout(sel_row)
         root.addWidget(self.scroll, 1)
@@ -122,7 +131,8 @@ class PlayerSelectScreen(QWidget):
     def refresh(self):
         self._selected_id = None
         self.lbl_selected.setText("선수를 선택하세요")
-        self.lbl_selected.setStyleSheet("color: #4a6a8a; font-size: 14px; background: transparent;")
+        self.lbl_selected.setStyleSheet("color: #868E96; font-size: 14px; background: transparent;")
+        self.lbl_style.setText("")
         self.btn_confirm.setEnabled(False)
         self._rebuild()
 
@@ -189,6 +199,12 @@ class PlayerSelectScreen(QWidget):
         )
         self.lbl_selected.setStyleSheet(f"color: {color}; font-size: 14px; font-weight: bold; background: transparent;")
         self.btn_confirm.setEnabled(True)
+
+        style = get_style(p["name"])
+        if style:
+            self.lbl_style.setText(f"▶ {style}")
+        else:
+            self.lbl_style.setText("")
 
         for card_id, card in self._cards.items():
             card.set_selected(card_id == pid)

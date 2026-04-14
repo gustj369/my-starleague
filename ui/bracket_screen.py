@@ -41,16 +41,16 @@ COL_X = [PAD + r * COL_STEP for r in range(4)]
 CANVAS_H = R1_C[-1] + MATCH_H // 2 + PAD   # ≈ 718
 CANVAS_W = COL_X[-1] + MATCH_W + PAD        # ≈ 882
 
-# 색상
-C_BG      = QColor("#0a0f1a")
-C_BOX     = QColor("#0d1525")
-C_BORDER  = QColor("#1e3a5f")
-C_MY      = QColor("#ffd700")
-C_WIN     = QColor("#4fc3f7")
-C_LOSE    = QColor("#EF5350")
-C_TEXT    = QColor("#c8d8e8")
-C_DIM     = QColor("#3a5060")
-C_LINE    = QColor("#1e3a5f")
+# 색상 — 라이트 테마
+C_BG      = QColor("#F8F9FA")
+C_BOX     = QColor("#FFFFFF")
+C_BORDER  = QColor("#E9ECEF")
+C_MY      = QColor("#5B6CF6")
+C_WIN     = QColor("#51CF66")
+C_LOSE    = QColor("#FF6B6B")
+C_TEXT    = QColor("#212529")
+C_DIM     = QColor("#CED4DA")
+C_LINE    = QColor("#DEE2E6")
 
 
 class BracketCanvas(QWidget):
@@ -104,12 +104,12 @@ class BracketCanvas(QWidget):
 
     def _draw_headers(self, p: QPainter):
         headers = ["16강", "8강", "4강", "결승"]
-        font = QFont("맑은 고딕", 11, QFont.Weight.Bold)
+        font = QFont("맑은 고딕", 10, QFont.Weight.Bold)
         p.setFont(font)
         for r, label in enumerate(headers):
             x = COL_X[r]
             rect = QRectF(x, 0, MATCH_W, PAD - 2)
-            p.setPen(QPen(QColor("#4fc3f7")))
+            p.setPen(QPen(QColor("#868E96")))
             p.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
 
     def _draw_connectors(self, p: QPainter):
@@ -202,7 +202,7 @@ class BracketCanvas(QWidget):
         if a_id and b_id and is_rival(a_id, b_id):
             rival_font = QFont("Segoe UI Emoji", 10)
             p.setFont(rival_font)
-            p.setPen(QPen(QColor("#FF6F00")))
+            p.setPen(QPen(QColor("#FF6B6B")))
             p.drawText(
                 QRectF(cx + MATCH_W - 22, top, 20, MATCH_H),
                 Qt.AlignmentFlag.AlignCenter,
@@ -264,11 +264,11 @@ class BracketScreen(QWidget):
         hdr = QHBoxLayout()
         self.lbl_title = QLabel("토너먼트 대진표")
         self.lbl_title.setStyleSheet(
-            "color: #ffd700; font-size: 20px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 20px; font-weight: bold; background: transparent;"
         )
         self.lbl_gold = QLabel("")
         self.lbl_gold.setStyleSheet(
-            "color: #ffd700; font-size: 13px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 13px; font-weight: bold; background: transparent;"
         )
         btn_back = QPushButton("← 메인으로")
         btn_back.clicked.connect(self.sig_back)
@@ -282,7 +282,7 @@ class BracketScreen(QWidget):
         self.lbl_status = QLabel("")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_status.setStyleSheet(
-            "color: #4fc3f7; font-size: 13px; background: transparent;"
+            "color: #5B6CF6; font-size: 13px; font-weight: bold; background: transparent;"
         )
 
         # 브라켓 캔버스 (스크롤 가능)

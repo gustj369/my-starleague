@@ -26,6 +26,14 @@ SETS_TO_WIN = {
     "결승": 3,
 }
 
+# 세트 전략 페이즈 보정값
+# PRD v10: +20/-10 → +12/-6 (BUILD_ADVANTAGE_BOOST와 중복 시 스탯 차이를 압도하던 문제 해소)
+STRATEGY_PHASE_BONUS = {
+    "초반집중":   {"초반": +12, "중반":  0, "후반": -6},
+    "균형":       {"초반":   0, "중반":  0, "후반":  0},
+    "후반체력전": {"초반":  -6, "중반":  0, "후반": +12},
+}
+
 
 # ── 데이터 클래스 ──────────────────────────────────────────────
 @dataclass
@@ -119,13 +127,29 @@ def _apply_winner_delta(upset_bonus: Dict[str, int] | None = None) -> Dict[str, 
 
 
 def _apply_loser_delta(player: dict, power_diff: float) -> Dict[str, int]:
+    """PRD v10: 패자 스탯 감소 강화 — 스탯 인플레이션 억제.
+    - 기본: 1개 스탯 -1~-3
+    - 큰 차이로 졌을 때(power_diff≥15): 추가 1개 스탯 -1
+    - 역경에서 배움(sense +1)은 power_diff≥15일 때로 상향
+    """
     delta = {k: 0 for k in STAT_KEYS}
     drop_key = random.choice(STAT_KEYS)
-    drop_val = random.randint(1, 2)
+    drop_val = random.randint(1, 3)   # -2 max → -3 max
     current = player[drop_key]
     delta[drop_key] = -min(drop_val, current - 1)
-    if power_diff >= 10:
-        delta["sense"] += 1  # 역경에서 배움
+
+    if power_diff >= 15:
+        # 압도적 패배: 추가 스탯 하락
+        keys_pool = [k for k in STAT_KEYS if k != drop_key]
+        extra_key = random.choice(keys_pool)
+        delta[extra_key] = -min(1, player[extra_key] - 1)
+        # 역경에서 배움 (sense는 빠지지 않음)
+        if drop_key != "sense" and extra_key != "sense":
+            delta["sense"] = min(1, 100 - player["sense"])
+    elif power_diff >= 8:
+        # 역경에서 배움 (기존 조건 완화)
+        if drop_key != "sense":
+            delta["sense"] = min(1, 100 - player["sense"])
     return delta
 
 
@@ -178,6 +202,7 @@ def simulate_set(
     series_score: tuple[int, int] = (0, 0),
     build_a: str = "바위",
     build_b: str = "바위",
+    strategy_a: str = "균형",
 ) -> SetResult:
     """단일 세트 결과 반환. DB에 쓰지 않는다.
 
@@ -201,14 +226,16 @@ def simulate_set(
     map_bonus_b = mp[RACE_BONUS_COL[pb["race"]]]
 
     rival_info = get_rival_info(player_a_id, player_b_id)
-    rival_stat = rival_info["stat_bonus"] if rival_info else 0
-    extra_luck  = rival_info["extra_luck"]  if rival_info else 0
+    # PRD v10 수정: rival_stat을 양쪽에 동일하게 적용하면 상쇄되어 효과 없음.
+    # → rival_stat 제거, extra_luck은 "변동성 확장"(extra_luck_range)으로 재설계.
+    #   라이벌전에서 양쪽의 luck 범위가 독립적으로 확장 → 더 드라마틱한 경기.
+    extra_luck_range = rival_info["extra_luck"] if rival_info else 0
 
     a_fat = a_fatigue_override if a_fatigue_override is not None else pa.get("fatigue", 0)
     b_fat = b_fatigue_override if b_fatigue_override is not None else pb.get("fatigue", 0)
 
-    eff_a = calc_effective(pa, ia, map_bonus_a, a_condition, rival_stat, fatigue_val=a_fat)
-    eff_b = calc_effective(pb, ib, map_bonus_b, b_condition, rival_stat, fatigue_val=b_fat)
+    eff_a = calc_effective(pa, ia, map_bonus_a, a_condition, rival_bonus=0, fatigue_val=a_fat)
+    eff_b = calc_effective(pb, ib, map_bonus_b, b_condition, rival_bonus=0, fatigue_val=b_fat)
 
     # ── 언더독 부스트 + 강자 패널티 ──────────────────────────
     a_boost = a_penalty = 0
@@ -232,44 +259,50 @@ def simulate_set(
         a_penalty += penalty
 
     # ── 다전제 역전 모멘텀 ────────────────────────────────────
+    # PRD v10: 세트 차이에 비례 (flat +5 → gap×4, 최대 +8)
     a_sets, b_sets = series_score
+    gap = abs(b_sets - a_sets)
+    comeback = min(gap * 4, 8)
     if b_sets > a_sets:
-        a_boost += 5
+        a_boost += comeback   # a가 뒤져있으면 역전 의지 부스트
     elif a_sets > b_sets:
-        b_boost += 5
+        b_boost += comeback
 
     # ── 빌드 결과 ─────────────────────────────────────────────
     br = calc_build_result(build_a, build_b)
 
-    # ── 페이즈 1: 초반 — 빌드 우위 적용 ──────────────────────
-    p1_a_boost = a_boost + (BUILD_ADVANTAGE_BOOST if br > 0 else 0)
+    # ── 전략 보정값 가져오기 ──────────────────────────────────
+    strat_bonus = STRATEGY_PHASE_BONUS.get(strategy_a, STRATEGY_PHASE_BONUS["균형"])
+
+    # ── 페이즈 1: 초반 — 빌드 우위 + 전략 적용 ───────────────
+    p1_a_boost = a_boost + (BUILD_ADVANTAGE_BOOST if br > 0 else 0) + strat_bonus["초반"]
     p1_b_boost = b_boost + (BUILD_ADVANTAGE_BOOST if br < 0 else 0)
 
-    p1_a = calc_power(eff_a, a_grade, extra_luck,
+    p1_a = calc_power(eff_a, a_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p1_a_boost, favorite_penalty=a_penalty)
-    p1_b = calc_power(eff_b, b_grade, extra_luck,
+    p1_b = calc_power(eff_b, b_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p1_b_boost, favorite_penalty=b_penalty)
     p1_winner = player_a_id if p1_a >= p1_b else player_b_id
 
-    # ── 페이즈 2: 중반 — 초반 모멘텀 +3 ──────────────────────
-    p2_a_boost = a_boost + (3 if p1_winner == player_a_id else 0)
+    # ── 페이즈 2: 중반 — 초반 모멘텀 +3 + 전략 적용 ──────────
+    p2_a_boost = a_boost + (3 if p1_winner == player_a_id else 0) + strat_bonus["중반"]
     p2_b_boost = b_boost + (3 if p1_winner == player_b_id else 0)
 
-    p2_a = calc_power(eff_a, a_grade, extra_luck,
+    p2_a = calc_power(eff_a, a_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p2_a_boost, favorite_penalty=a_penalty)
-    p2_b = calc_power(eff_b, b_grade, extra_luck,
+    p2_b = calc_power(eff_b, b_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p2_b_boost, favorite_penalty=b_penalty)
     p2_winner = player_a_id if p2_a >= p2_b else player_b_id
 
-    # ── 페이즈 3: 후반 — 피로도 +15 시뮬레이션 ───────────────
-    eff_a_late = calc_effective(pa, ia, map_bonus_a, a_condition, rival_stat,
+    # ── 페이즈 3: 후반 — 피로도 +15 시뮬레이션 + 전략 적용 ───
+    eff_a_late = calc_effective(pa, ia, map_bonus_a, a_condition, rival_bonus=0,
                                 fatigue_val=min(100, a_fat + 15))
-    eff_b_late = calc_effective(pb, ib, map_bonus_b, b_condition, rival_stat,
+    eff_b_late = calc_effective(pb, ib, map_bonus_b, b_condition, rival_bonus=0,
                                 fatigue_val=min(100, b_fat + 15))
 
-    p3_a = calc_power(eff_a_late, a_grade, extra_luck,
-                      underdog_boost=a_boost, favorite_penalty=a_penalty)
-    p3_b = calc_power(eff_b_late, b_grade, extra_luck,
+    p3_a = calc_power(eff_a_late, a_grade, extra_luck_range=extra_luck_range,
+                      underdog_boost=a_boost + strat_bonus["후반"], favorite_penalty=a_penalty)
+    p3_b = calc_power(eff_b_late, b_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=b_boost, favorite_penalty=b_penalty)
     p3_winner = player_a_id if p3_a >= p3_b else player_b_id
 

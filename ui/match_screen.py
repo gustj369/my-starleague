@@ -46,7 +46,7 @@ class MatchScreen(QWidget):
         # 헤더
         hdr = QHBoxLayout()
         title = QLabel("대결 설정")
-        title.setStyleSheet("color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;")
+        title.setStyleSheet("color: #212529; font-size: 22px; font-weight: bold; background: transparent;")
         self.btn_back = QPushButton("← 선수 선택")
         self.btn_back.clicked.connect(self.sig_back)
         hdr.addWidget(title)
@@ -62,7 +62,7 @@ class MatchScreen(QWidget):
         map_row.addWidget(self.cmb_map)
 
         self.lbl_map_bonus = QLabel("")
-        self.lbl_map_bonus.setStyleSheet("color: #7a9ab8; font-size: 11px; background: transparent;")
+        self.lbl_map_bonus.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
         map_row.addSpacing(20)
         map_row.addWidget(self.lbl_map_bonus)
         map_row.addStretch()
@@ -73,7 +73,7 @@ class MatchScreen(QWidget):
         self.frame_b = self._player_panel("B")
         vs = QLabel("VS")
         vs.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        vs.setStyleSheet("color: #ffd700; font-size: 28px; font-weight: bold; background: transparent;")
+        vs.setStyleSheet("color: #5B6CF6; font-size: 28px; font-weight: bold; background: transparent;")
         vs.setFixedWidth(50)
 
         compare.addWidget(self.frame_a, 1)
@@ -101,13 +101,13 @@ class MatchScreen(QWidget):
 
     def _player_panel(self, slot: str) -> QFrame:
         frame = QFrame()
-        frame.setStyleSheet("QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }")
+        frame.setStyleSheet("QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 8px; }")
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(14, 14, 14, 14)
         lay.setSpacing(8)
 
         slot_lbl = QLabel(f"[선수 {slot}]")
-        slot_lbl.setStyleSheet("color: #ffd700; font-weight: bold; font-size: 13px; background: transparent;")
+        slot_lbl.setStyleSheet("color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;")
 
         name_lbl = QLabel("—")
         name_lbl.setStyleSheet("font-size: 18px; font-weight: bold; background: transparent;")
@@ -139,7 +139,7 @@ class MatchScreen(QWidget):
 
         bonus_lbl = QLabel("")
         bonus_lbl.setObjectName(f"bonus_{slot}")
-        bonus_lbl.setStyleSheet("color: #4fc3f7; font-size: 11px; background: transparent;")
+        bonus_lbl.setStyleSheet("color: #5B6CF6; font-size: 11px; background: transparent;")
         bonus_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lay.addWidget(slot_lbl)
@@ -213,13 +213,13 @@ class MatchScreen(QWidget):
             lbl = frame.findChild(QLabel, f"bonus_{slot}")
             if bonus_val > 0:
                 lbl.setText(f"맵 보정: +{bonus_val}")
-                lbl.setStyleSheet("color: #81C784; font-size: 11px; background: transparent;")
+                lbl.setStyleSheet("color: #51CF66; font-size: 11px; background: transparent;")
             elif bonus_val < 0:
                 lbl.setText(f"맵 보정: {bonus_val}")
-                lbl.setStyleSheet("color: #EF9A9A; font-size: 11px; background: transparent;")
+                lbl.setStyleSheet("color: #FF6B6B; font-size: 11px; background: transparent;")
             else:
                 lbl.setText("맵 보정: ±0")
-                lbl.setStyleSheet("color: #7a9ab8; font-size: 11px; background: transparent;")
+                lbl.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
 
     def _on_start(self):
         idx = self.cmb_map.currentIndex()

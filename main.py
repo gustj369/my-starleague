@@ -10,9 +10,9 @@ sys.path.insert(0, BASE_DIR)
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QStackedWidget,
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve
 
 from database.db import (
     get_gold, get_connection, set_active_slot,
@@ -28,7 +28,11 @@ from core.tournament import (
     get_latest_completed_tournament, ROUNDS, ROUND_REWARDS
 )
 
+from core.season_events import generate_events, apply_gold_events, store_fatigue_events, apply_pending_fatigue_events
+from core.growth_events import generate_growth_event, apply_growth_event
+from ui.season_news_dialog import SeasonNewsDialog
 from ui.styles import MAIN_QSS
+from ui.font_loader import load_fonts
 from ui.slot_select_screen import SlotSelectScreen
 from ui.main_menu import MainMenuScreen
 from ui.player_select import PlayerSelectScreen
@@ -40,6 +44,7 @@ from ui.final_result import FinalResultScreen
 from ui.player_manager import PlayerManagerScreen
 from ui.shop_screen import ShopScreen
 from ui.history_screen import HistoryScreen
+from ui.ranking_screen import RankingScreen
 
 # 화면 인덱스
 IDX_SLOT       = 0   # 슬롯 선택 (시작 화면)
@@ -53,6 +58,7 @@ IDX_FINAL      = 7
 IDX_PLAYERS    = 8
 IDX_SHOP       = 9
 IDX_HISTORY    = 10
+IDX_RANKING    = 11
 
 
 class NavBar(QWidget):
@@ -60,7 +66,7 @@ class NavBar(QWidget):
         super().__init__(parent)
         self.setFixedHeight(44)
         self.setStyleSheet(
-            "QWidget { background-color: #060c18; border-bottom: 1px solid #1e3a5f; }"
+            "QWidget { background-color: #FFFFFF; border-bottom: 1px solid #E9ECEF; }"
         )
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 0, 16, 0)
@@ -68,14 +74,14 @@ class NavBar(QWidget):
 
         logo = QLabel("★ MY STARLEAGUE")
         logo.setStyleSheet(
-            "color: #ffd700; font-weight: bold; font-size: 13px; background: transparent;"
+            "color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;"
         )
         lay.addWidget(logo)
         lay.addStretch()
 
         self.lbl_gold = QLabel("Gold: 0 G")
         self.lbl_gold.setStyleSheet(
-            "color: #ffd700; font-size: 12px; background: transparent;"
+            "color: #F59E0B; font-size: 12px; background: transparent;"
         )
         lay.addWidget(self.lbl_gold)
         lay.addSpacing(20)
@@ -85,17 +91,18 @@ class NavBar(QWidget):
             ("선수 관리", IDX_PLAYERS),
             ("아이템 상점", IDX_SHOP),
             ("대결 기록", IDX_HISTORY),
+            ("선수 랭킹", IDX_RANKING),
         ]:
             btn = QPushButton(label)
             btn.setFixedHeight(30)
             btn.setProperty("_idx", idx)
             btn.setStyleSheet("""
                 QPushButton {
-                    background: transparent; color: #7a9ab8;
-                    border: 1px solid #1e3a5f; border-radius: 3px;
+                    background: transparent; color: #212529;
+                    border: 1px solid #E9ECEF; border-radius: 8px;
                     padding: 0 10px; font-size: 12px;
                 }
-                QPushButton:hover { color: #4fc3f7; border-color: #4fc3f7; background: #0d1525; }
+                QPushButton:hover { color: #5B6CF6; border-color: #5B6CF6; background: #EEF2FF; }
             """)
             btn.clicked.connect(lambda _, i=idx: self._nav_cb and self._nav_cb(i))
             lay.addWidget(btn)
@@ -139,10 +146,11 @@ class MainWindow(QMainWindow):
         self.s_players    = PlayerManagerScreen()
         self.s_shop       = ShopScreen()
         self.s_history    = HistoryScreen()
+        self.s_ranking    = RankingScreen()
 
         for s in [self.s_slot, self.s_menu, self.s_select, self.s_bracket,
                   self.s_prep, self.s_simulation, self.s_result, self.s_final,
-                  self.s_players, self.s_shop, self.s_history]:
+                  self.s_players, self.s_shop, self.s_history, self.s_ranking]:
             self.stack.addWidget(s)
 
         # ── 시그널 연결 ────────────────────────────────────────
@@ -175,6 +183,7 @@ class MainWindow(QMainWindow):
         self.s_players.sig_back.connect(self._sub_back)
         self.s_shop.sig_back.connect(self._sub_back)
         self.s_history.sig_back.connect(self._sub_back)
+        self.s_ranking.sig_back.connect(self._sub_back)
 
         # 내부 상태
         self._tid: int | None = None
@@ -187,14 +196,43 @@ class MainWindow(QMainWindow):
         self._pending_tm_id: int = 0
         self._pending_round: str = ""
 
+        # ── 화면 전환 fade 애니메이션 ─────────────────────────
+        self._opacity_effect = QGraphicsOpacityEffect(self.stack)
+        self.stack.setGraphicsEffect(self._opacity_effect)
+        self._opacity_effect.setOpacity(1.0)
+        self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity")
+        self._fade_anim.setDuration(180)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._pending_go_idx: int | None = None
+        self._fade_anim.finished.connect(self._on_fade_done)
+
         self.navbar.setVisible(False)
-        self._go(IDX_SLOT)
+        self.stack.setCurrentIndex(IDX_SLOT)  # 첫 화면은 직접 세팅 (fade 없음)
 
     # ── 화면 전환 ──────────────────────────────────────────────
     def _go(self, idx: int):
-        self.stack.setCurrentIndex(idx)
+        if self.stack.currentIndex() == idx:
+            return
+        # 페이드 아웃 → 전환 → 페이드 인
+        self._pending_go_idx = idx
+        self._fade_anim.stop()
+        self._fade_anim.setStartValue(1.0)
+        self._fade_anim.setEndValue(0.0)
+        self._fade_anim.start()
         if idx not in (IDX_SLOT,):
             self.navbar.update_gold()
+
+    def _on_fade_done(self):
+        if self._pending_go_idx is None:
+            return
+        idx = self._pending_go_idx
+        self._pending_go_idx = None
+        if self._fade_anim.startValue() == 1.0:
+            # 페이드 아웃 완료 → 화면 전환 후 페이드 인
+            self.stack.setCurrentIndex(idx)
+            self._fade_anim.setStartValue(0.0)
+            self._fade_anim.setEndValue(1.0)
+            self._fade_anim.start()
 
     def _nav_to(self, idx: int):
         self._pre_nav_idx = self.stack.currentIndex()
@@ -204,6 +242,8 @@ class MainWindow(QMainWindow):
             self.s_shop.refresh()
         elif idx == IDX_HISTORY:
             self.s_history.refresh()
+        elif idx == IDX_RANKING:
+            self.s_ranking.refresh()
         self._go(idx)
 
     def _sub_back(self):
@@ -251,7 +291,12 @@ class MainWindow(QMainWindow):
 
     # ── 메인 메뉴 ──────────────────────────────────────────────
     def _new_tournament(self):
-        """메인 메뉴 '새 토너먼트' — 골드 유지, 선수 선택으로"""
+        """메인 메뉴 '새 토너먼트' — 골드 유지, 시즌 뉴스 표시 후 선수 선택"""
+        events = generate_events(2)
+        apply_gold_events(events)
+        store_fatigue_events(events)
+        dlg = SeasonNewsDialog(events, self)
+        dlg.exec()
         self.s_select.refresh()
         self._go(IDX_SELECT)
 
@@ -278,6 +323,7 @@ class MainWindow(QMainWindow):
             )
         self._gold_at_start = get_gold()
         self._tid = create_tournament(my_id)
+        apply_pending_fatigue_events()
         self.s_bracket.load_tournament(self._tid, self._my_id)
         self._go(IDX_BRACKET)
 
@@ -362,6 +408,11 @@ class MainWindow(QMainWindow):
             tournament_id=self._tid
         )
         save_tournament_result(achievement, gold_earned)
+        # 성장 이벤트 생성·적용·표시
+        if self._my_id:
+            growth = generate_growth_event(self._my_id, achievement)
+            apply_growth_event(self._my_id, growth)
+            self.s_final.show_growth(growth)
         set_current_tournament_id(None)
         self.s_menu.refresh()
         self._go(IDX_FINAL)
@@ -378,6 +429,7 @@ def main():
     # DB 초기화는 슬롯 선택 후에 수행 (슬롯 선택 전엔 DB 경로 미확정)
     app = QApplication(sys.argv)
     app.setApplicationName("마이 스타리그")
+    load_fonts()   # Press Start 2P, Orbitron 등록
     app.setStyleSheet(MAIN_QSS)
 
     win = MainWindow()

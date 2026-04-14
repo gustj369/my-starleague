@@ -23,7 +23,8 @@ BUILD_NAMES: dict[str, dict[str, dict[str, str]]] = {
 RPS_WINS = {"가위": "보", "보": "바위", "바위": "가위"}
 
 # 빌드 우위 시 초반 파워 부스트
-BUILD_ADVANTAGE_BOOST = 15
+# PRD v10: 15→10 (전략 보너스와 중복 시 너무 강했음)
+BUILD_ADVANTAGE_BOOST = 10
 
 BUILD_TYPES = ["가위", "바위", "보"]
 

@@ -8,10 +8,11 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from database.db import get_connection
 from core.balance import (
     roll_condition, apply_condition_item,
-    CONDITION_COLOR, get_locked_map_id, is_rival
+    CONDITION_COLOR, get_locked_map_id, is_rival, get_h2h_record
 )
 from ui.widgets import StatBar, RadarChart, make_separator, make_player_avatar, get_player_image_path
 from ui.styles import RACE_COLORS, GRADE_STYLE
+from core.player_data import get_pre_match_quote, get_style
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
@@ -66,7 +67,7 @@ class MatchPrepScreen(QWidget):
         hdr = QHBoxLayout()
         title = QLabel("경기 준비")
         title.setStyleSheet(
-            "color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 22px; font-weight: bold; background: transparent;"
         )
         btn_back = QPushButton("← 대진표로")
         btn_back.clicked.connect(self.sig_back)
@@ -78,14 +79,21 @@ class MatchPrepScreen(QWidget):
         self.lbl_round = QLabel("")
         self.lbl_round.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_round.setStyleSheet(
-            "color: #4fc3f7; font-size: 14px; font-weight: bold; background: transparent;"
+            "color: #5B6CF6; font-size: 14px; font-weight: bold; background: transparent;"
         )
 
         # 라이벌 표시
         self.lbl_rival = QLabel("")
         self.lbl_rival.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_rival.setStyleSheet(
-            "color: #FF6F00; font-size: 13px; font-weight: bold; background: transparent;"
+            "color: #FF6B6B; font-size: 13px; font-weight: bold; background: transparent;"
+        )
+
+        # 경기 전 대사
+        self.lbl_quote = QLabel("")
+        self.lbl_quote.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_quote.setStyleSheet(
+            "color: #212529; font-size: 13px; font-style: italic; background: transparent;"
         )
 
         # 컨디션 + 피로도 행
@@ -93,25 +101,25 @@ class MatchPrepScreen(QWidget):
 
         cond_frame = QFrame()
         cond_frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 5px; }"
+            "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 5px; }"
         )
         cond_lay = QHBoxLayout(cond_frame)
         cond_lay.setContentsMargins(10, 6, 10, 6)
         cond_lay.setSpacing(8)
         cond_title = QLabel("컨디션:")
-        cond_title.setStyleSheet("color: #7a9ab8; font-size: 12px; background: transparent;")
+        cond_title.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
         self.lbl_condition = QLabel("보통")
         self.lbl_condition.setStyleSheet(
-            "color: #c8d8e8; font-size: 14px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 14px; font-weight: bold; background: transparent;"
         )
         self.btn_use_drink = QPushButton("⚡ 에너지드링크 사용")
         self.btn_use_drink.setFixedHeight(28)
         self.btn_use_drink.setStyleSheet("""
             QPushButton {
-                background: #1565C0; color: #fff; border-radius: 3px;
+                background: #5B6CF6; color: #fff; border-radius: 3px;
                 font-size: 11px; padding: 0 8px;
             }
-            QPushButton:hover { background: #1976D2; }
+            QPushButton:hover { background: #4A5CE0; }
             QPushButton:disabled { background: #333; color: #666; }
         """)
         self.btn_use_drink.clicked.connect(self._on_use_drink)
@@ -122,17 +130,17 @@ class MatchPrepScreen(QWidget):
 
         fat_frame = QFrame()
         fat_frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 5px; }"
+            "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 5px; }"
         )
         fat_lay = QVBoxLayout(fat_frame)
         fat_lay.setContentsMargins(10, 6, 10, 6)
         fat_lay.setSpacing(3)
         fat_title_row = QHBoxLayout()
         fat_title = QLabel("피로도:")
-        fat_title.setStyleSheet("color: #7a9ab8; font-size: 12px; background: transparent;")
+        fat_title.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
         self.lbl_fatigue_val = QLabel("0")
         self.lbl_fatigue_val.setStyleSheet(
-            "color: #EF9A9A; font-size: 12px; background: transparent;"
+            "color: #FF6B6B; font-size: 12px; background: transparent;"
         )
         fat_title_row.addWidget(fat_title)
         fat_title_row.addWidget(self.lbl_fatigue_val)
@@ -143,8 +151,8 @@ class MatchPrepScreen(QWidget):
         self.bar_fatigue.setFixedHeight(10)
         self.bar_fatigue.setTextVisible(False)
         self.bar_fatigue.setStyleSheet("""
-            QProgressBar { background: #1e3a5f; border-radius: 4px; }
-            QProgressBar::chunk { background: #EF5350; border-radius: 4px; }
+            QProgressBar { background: #E9ECEF; border-radius: 4px; }
+            QProgressBar::chunk { background: #FF6B6B; border-radius: 4px; }
         """)
         fat_lay.addLayout(fat_title_row)
         fat_lay.addWidget(self.bar_fatigue)
@@ -161,12 +169,12 @@ class MatchPrepScreen(QWidget):
         self.cmb_map.currentIndexChanged.connect(self._on_map_changed)
         map_row.addWidget(self.cmb_map)
         self.lbl_bonus = QLabel("")
-        self.lbl_bonus.setStyleSheet("color: #7a9ab8; font-size: 11px; background: transparent;")
+        self.lbl_bonus.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
         map_row.addSpacing(12)
         map_row.addWidget(self.lbl_bonus)
         self.lbl_locked = QLabel("")
         self.lbl_locked.setStyleSheet(
-            "color: #FF6F00; font-size: 11px; background: transparent;"
+            "color: #FF6B6B; font-size: 11px; background: transparent;"
         )
         map_row.addSpacing(8)
         map_row.addWidget(self.lbl_locked)
@@ -179,7 +187,7 @@ class MatchPrepScreen(QWidget):
         vs = QLabel("VS")
         vs.setAlignment(Qt.AlignmentFlag.AlignCenter)
         vs.setStyleSheet(
-            "color: #ffd700; font-size: 30px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 30px; font-weight: bold; background: transparent;"
         )
         vs.setFixedWidth(52)
         compare.addWidget(self.panel_my, 1)
@@ -189,7 +197,7 @@ class MatchPrepScreen(QWidget):
         # 내 아이템
         self.lbl_items = QLabel("")
         self.lbl_items.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_items.setStyleSheet("color: #ffd700; font-size: 12px; background: transparent;")
+        self.lbl_items.setStyleSheet("color: #F59E0B; font-size: 12px; background: transparent;")
 
         # 시작 버튼
         btn_row = QHBoxLayout()
@@ -206,6 +214,7 @@ class MatchPrepScreen(QWidget):
         root.addWidget(make_separator())
         root.addWidget(self.lbl_round)
         root.addWidget(self.lbl_rival)
+        root.addWidget(self.lbl_quote)
         root.addLayout(status_row)
         root.addLayout(map_row)
         root.addWidget(make_separator())
@@ -218,7 +227,7 @@ class MatchPrepScreen(QWidget):
         frame = QFrame()
         frame.setObjectName(f"panel_{slot}")
         frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
+            "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 6px; }"
         )
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(12, 12, 12, 12)
@@ -227,7 +236,7 @@ class MatchPrepScreen(QWidget):
         tag = "내 선수" if slot == "MY" else "상대 선수"
         tag_lbl = QLabel(f"[{tag}]")
         tag_lbl.setStyleSheet(
-            ("color: #ffd700;" if slot == "MY" else "color: #4fc3f7;") +
+            ("color: #5B6CF6;" if slot == "MY" else "color: #868E96;") +
             " font-weight: bold; font-size: 12px; background: transparent;"
         )
 
@@ -237,8 +246,8 @@ class MatchPrepScreen(QWidget):
         avatar_placeholder.setFixedSize(80, 80)
         avatar_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar_placeholder.setStyleSheet(
-            "background: #1e3a5f; color: #ffd700; font-size: 24px; "
-            "font-weight: bold; border-radius: 40px; border: 1px solid #1e3a5f;"
+            "background: #EEF2FF; color: #5B6CF6; font-size: 24px; "
+            "font-weight: bold; border-radius: 40px; border: 2px solid #C5D0E8;"
         )
         avatar_row = QHBoxLayout()
         avatar_row.addStretch()
@@ -299,9 +308,22 @@ class MatchPrepScreen(QWidget):
 
         # 라이벌 여부
         if is_rival(my_id, opp_id):
-            self.lbl_rival.setText("🔥 라이벌 매치! 능력치 & 운 보너스 적용")
+            h2h = get_h2h_record(my_id, opp_id)
+            if h2h["total"] > 0:
+                opp_name = self._opp["name"]
+                h2h_text = f"통산 {h2h['a_wins']}승 {h2h['b_wins']}패 vs {opp_name}"
+                self.lbl_rival.setText(f"🔥 라이벌 매치!  |  {h2h_text}  |  능력치 & 운 보너스 적용")
+            else:
+                self.lbl_rival.setText("🔥 라이벌 매치! 능력치 & 운 보너스 적용  |  첫 번째 맞대결!")
         else:
             self.lbl_rival.setText("")
+
+        # 선수 대사
+        quote = get_pre_match_quote(self._my["name"], self._opp["name"])
+        if quote:
+            self.lbl_quote.setText(f'"{quote}"')
+        else:
+            self.lbl_quote.setText("")
 
         # 컨디션 롤
         self._my_condition = roll_condition(self._my["grade"])
@@ -367,7 +389,7 @@ class MatchPrepScreen(QWidget):
             self.lbl_items.setText("장착 아이템 없음 (상점에서 구매 가능)")
 
     def _update_condition_display(self):
-        color = CONDITION_COLOR.get(self._my_condition, "#c8d8e8")
+        color = CONDITION_COLOR.get(self._my_condition, "#212529")
         self.lbl_condition.setText(self._my_condition)
         self.lbl_condition.setStyleSheet(
             f"color: {color}; font-size: 14px; font-weight: bold; background: transparent;"
@@ -411,13 +433,13 @@ class MatchPrepScreen(QWidget):
                 )
                 avatar_lbl.setPixmap(px)
                 avatar_lbl.setStyleSheet(
-                    "border-radius: 40px; background: #0d1525; border: 1px solid #1e3a5f;"
+                    "border-radius: 40px; background: #FFFFFF; border: 2px solid #E9ECEF;"
                 )
             else:
                 avatar_lbl.setText(player["name"][0])
                 avatar_lbl.setStyleSheet(
-                    "background: #1e3a5f; color: #ffd700; font-size: 24px; "
-                    "font-weight: bold; border-radius: 40px; border: 1px solid #1e3a5f;"
+                    "background: #EEF2FF; color: #5B6CF6; font-size: 24px; "
+                    "font-weight: bold; border-radius: 40px; border: 2px solid #C5D0E8;"
                 )
 
         frame.findChild(QLabel, f"name_{slot}").setText(player["name"])
@@ -462,13 +484,13 @@ class MatchPrepScreen(QWidget):
             lbl = frame.findChild(QLabel, f"mapbonus_{slot}")
             if bv > 0:
                 lbl.setText(f"맵 보정: +{bv}")
-                lbl.setStyleSheet("color: #81C784; font-size: 11px; background: transparent;")
+                lbl.setStyleSheet("color: #51CF66; font-size: 11px; background: transparent;")
             elif bv < 0:
                 lbl.setText(f"맵 보정: {bv}")
-                lbl.setStyleSheet("color: #EF9A9A; font-size: 11px; background: transparent;")
+                lbl.setStyleSheet("color: #FF6B6B; font-size: 11px; background: transparent;")
             else:
                 lbl.setText("맵 보정: ±0")
-                lbl.setStyleSheet("color: #7a9ab8; font-size: 11px; background: transparent;")
+                lbl.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
 
     def _on_start(self):
         if self._my and self._opp:

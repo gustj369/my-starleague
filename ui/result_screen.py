@@ -10,6 +10,7 @@ from core.match import MatchOutcome
 from core.balance import CONDITION_COLOR
 from ui.widgets import StatBar, make_separator
 from ui.styles import RACE_COLORS, GRADE_STYLE
+from core.player_data import get_win_quote, get_loss_quote
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
@@ -38,20 +39,20 @@ class ResultScreen(QWidget):
         self.lbl_result = QLabel("결과 발표")
         self.lbl_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_result.setStyleSheet(
-            "color: #ffd700; font-size: 30px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 30px; font-weight: bold; background: transparent;"
         )
 
         # 승자 이름
         self.lbl_winner = QLabel("")
         self.lbl_winner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_winner.setStyleSheet(
-            "color: #ffffff; font-size: 22px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 22px; font-weight: bold; background: transparent;"
         )
 
         # 전투력 표시
         self.lbl_power = QLabel("")
         self.lbl_power.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_power.setStyleSheet("color: #7a9ab8; font-size: 12px; background: transparent;")
+        self.lbl_power.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
 
         # 두 선수 능력치 변동 패널
         panels_row = QHBoxLayout()
@@ -65,20 +66,20 @@ class ResultScreen(QWidget):
         self.lbl_upset = QLabel("⚡  이변 발생!")
         self.lbl_upset.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_upset.setStyleSheet(
-            "color: #FF6F00; font-size: 22px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 22px; font-weight: bold; background: transparent;"
         )
         self.lbl_upset.setVisible(False)
 
         # 컨디션 / 피로도 정보
         self.lbl_cond_info = QLabel("")
         self.lbl_cond_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_cond_info.setStyleSheet("color: #7a9ab8; font-size: 12px; background: transparent;")
+        self.lbl_cond_info.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
 
         # 골드
         self.lbl_gold = QLabel("")
         self.lbl_gold.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_gold.setProperty("class", "gold")
-        self.lbl_gold.setStyleSheet("color: #ffd700; font-size: 14px; font-weight: bold; background: transparent;")
+        self.lbl_gold.setStyleSheet("color: #F59E0B; font-size: 14px; font-weight: bold; background: transparent;")
 
         # 계속 버튼
         btn_row = QHBoxLayout()
@@ -104,13 +105,13 @@ class ResultScreen(QWidget):
     def _delta_panel(self, slot: str) -> QFrame:
         frame = QFrame()
         frame.setObjectName(f"panel_{slot}")
-        frame.setStyleSheet("QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }")
+        frame.setStyleSheet("QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 8px; }")
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(14, 14, 14, 14)
         lay.setSpacing(6)
 
         slot_lbl = QLabel(f"[선수 {slot}]")
-        slot_lbl.setStyleSheet("color: #4fc3f7; font-weight: bold; background: transparent;")
+        slot_lbl.setStyleSheet("color: #5B6CF6; font-weight: bold; background: transparent;")
 
         name_lbl = QLabel("—")
         name_lbl.setObjectName(f"name_{slot}")
@@ -121,7 +122,7 @@ class ResultScreen(QWidget):
         old_grade.setObjectName(f"old_grade_{slot}")
         old_grade.setStyleSheet("font-size: 16px; background: transparent;")
         arr = QLabel(" → ")
-        arr.setStyleSheet("color: #7a9ab8; background: transparent;")
+        arr.setStyleSheet("color: #868E96; background: transparent;")
         new_grade = QLabel("")
         new_grade.setObjectName(f"new_grade_{slot}")
         new_grade.setStyleSheet("font-size: 16px; background: transparent;")
@@ -145,6 +146,15 @@ class ResultScreen(QWidget):
             bar = StatBar(label, 0)
             bar.setObjectName(f"bar_{slot}_{key}")
             lay.addWidget(bar)
+
+        quote_lbl = QLabel("")
+        quote_lbl.setObjectName(f"quote_{slot}")
+        quote_lbl.setWordWrap(True)
+        quote_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        quote_lbl.setStyleSheet(
+            "color: #868E96; font-size: 12px; font-style: italic; background: transparent;"
+        )
+        lay.addWidget(quote_lbl)
 
         return frame
 
@@ -193,13 +203,13 @@ class ResultScreen(QWidget):
         if outcome.is_rival_match and not outcome.is_upset:
             self.lbl_upset.setText("🔥 라이벌 매치!")
             self.lbl_upset.setStyleSheet(
-                "color: #FF6F00; font-size: 16px; font-weight: bold; background: transparent;"
+                "color: #F59E0B; font-size: 16px; font-weight: bold; background: transparent;"
             )
             self.lbl_upset.setVisible(True)
 
         # 컨디션 / 피로도 정보
-        cond_a_color = CONDITION_COLOR.get(outcome.a_condition, "#c8d8e8")
-        cond_b_color = CONDITION_COLOR.get(outcome.b_condition, "#c8d8e8")
+        cond_a_color = CONDITION_COLOR.get(outcome.a_condition, "#212529")
+        cond_b_color = CONDITION_COLOR.get(outcome.b_condition, "#212529")
         self.lbl_cond_info.setText(
             f"{new_a['name']} 컨디션: "
             f"<span style='color:{cond_a_color}'>{outcome.a_condition}</span>  "
@@ -242,9 +252,9 @@ class ResultScreen(QWidget):
 
         win_text = "🏆  승리" if is_winner else "💀  패배"
         win_style = (
-            "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 18px; font-weight: bold; background: transparent;"
             if is_winner else
-            "color: #EF9A9A; font-size: 18px; font-weight: bold; background: transparent;"
+            "color: #FF6B6B; font-size: 18px; font-weight: bold; background: transparent;"
         )
         frame.findChild(QLabel, f"result_{slot}").setText(win_text)
         frame.findChild(QLabel, f"result_{slot}").setStyleSheet(win_style)
@@ -263,6 +273,20 @@ class ResultScreen(QWidget):
             if bar:
                 bar.set_value(new[key], delta.get(key, 0))
 
+        quote_lbl = frame.findChild(QLabel, f"quote_{slot}")
+        if quote_lbl:
+            if is_winner:
+                q = get_win_quote(new["name"])
+                quote_lbl.setStyleSheet(
+                    "color: #F59E0B; font-size: 12px; font-style: italic; background: transparent;"
+                )
+            else:
+                q = get_loss_quote(new["name"])
+                quote_lbl.setStyleSheet(
+                    "color: #868E96; font-size: 12px; font-style: italic; background: transparent;"
+                )
+            quote_lbl.setText(f'"{q}"' if q else "")
+
     def _flash_winner(self):
         self._flash += self._flash_dir * 10
         if self._flash >= 60:
@@ -270,7 +294,7 @@ class ResultScreen(QWidget):
         elif self._flash <= 0:
             self._flash_dir = 1
         r = min(255, 200 + self._flash)
-        g = min(255, 180 + self._flash // 2)
+        g = min(255, 130 + self._flash // 2)
         self.lbl_result.setStyleSheet(
             f"color: rgb({r},{g},0); font-size: 30px; font-weight: bold; background: transparent;"
         )

@@ -18,7 +18,8 @@ from core.balance import (
 from core.commentary import get_set_commentary
 from core.builds import get_build_name, calc_build_result, BUILD_TYPES
 from ui.styles import GRADE_STYLE, RACE_COLORS
-from ui.widgets import make_separator
+from ui.widgets import make_separator, get_player_image_path
+from core.player_data import PLAYER_DATA
 
 COMMENTARY_DELAY_MS = 900    # 중계 한 줄 표시 간격
 SET_RESULT_DELAY_MS = 500    # 세트 결과 표시까지 딜레이
@@ -58,14 +59,14 @@ class EmergencyItemDialog(QDialog):
         lay.setSpacing(10)
 
         lbl = QLabel("사용할 아이템을 선택하세요:")
-        lbl.setStyleSheet("color: #ffd700; font-size: 13px; font-weight: bold;")
+        lbl.setStyleSheet("color: #F59E0B; font-size: 13px; font-weight: bold;")
         lay.addWidget(lbl)
 
         self.lst = QListWidget()
         self.lst.setStyleSheet("""
-            QListWidget { background: #0d1525; border: 1px solid #1e3a5f; border-radius:4px; }
-            QListWidget::item { padding: 6px 10px; color: #c8d8e8; }
-            QListWidget::item:selected { background: #1a3a6a; color: #ffd700; }
+            QListWidget { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius:4px; }
+            QListWidget::item { padding: 6px 10px; color: #212529; }
+            QListWidget::item:selected { background: #EEF2FF; color: #F59E0B; }
         """)
         for it in items:
             if it.get("condition_up", 0):
@@ -121,6 +122,7 @@ class SimulationScreen(QWidget):
         self._pending_ai_build: str = "바위"
         self._pending_set_result: SetResult | None = None
         self._my_build_history: list[str] = []
+        self._pending_strategy: str = "균형"
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -132,11 +134,11 @@ class SimulationScreen(QWidget):
         hdr = QHBoxLayout()
         self.lbl_round_set = QLabel("16강 — 1세트")
         self.lbl_round_set.setStyleSheet(
-            "color: #4fc3f7; font-size: 16px; font-weight: bold; background: transparent;"
+            "color: #5B6CF6; font-size: 16px; font-weight: bold; background: transparent;"
         )
         self.lbl_rival_badge = QLabel("")
         self.lbl_rival_badge.setStyleSheet(
-            "color: #FF6F00; font-size: 13px; font-weight: bold; background: transparent;"
+            "color: #FF6B6B; font-size: 13px; font-weight: bold; background: transparent;"
         )
         hdr.addWidget(self.lbl_round_set)
         hdr.addStretch()
@@ -148,7 +150,7 @@ class SimulationScreen(QWidget):
         vs_lbl = QLabel("VS")
         vs_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         vs_lbl.setStyleSheet(
-            "color: #ffd700; font-size: 28px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 28px; font-weight: bold; background: transparent;"
         )
         vs_lbl.setFixedWidth(48)
         self.panel_b = self._make_player_panel("b")
@@ -160,7 +162,7 @@ class SimulationScreen(QWidget):
         self.lbl_score = QLabel("0  —  0")
         self.lbl_score.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_score.setStyleSheet(
-            "color: #ffd700; font-size: 26px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 26px; font-weight: bold; background: transparent;"
         )
 
         # ── 빌드 선택 프레임 / 중계 프레임 (스택) ──
@@ -174,20 +176,24 @@ class SimulationScreen(QWidget):
         self.commentary_frame = self._make_commentary_frame()
         self.mid_stack.addWidget(self.commentary_frame)
 
+        # idx 2: 라이벌 인트로 화면
+        self.rival_intro_frame = self._make_rival_intro_frame()
+        self.mid_stack.addWidget(self.rival_intro_frame)
+
         self.mid_stack.setCurrentIndex(0)
 
         # ── 세트 결과 배너 ──
         self.lbl_set_result = QLabel("")
         self.lbl_set_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_set_result.setStyleSheet(
-            "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 18px; font-weight: bold; background: transparent;"
         )
 
         # ── 페이즈 결과 미니 표시 ──
         self.lbl_phase_scores = QLabel("")
         self.lbl_phase_scores.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_phase_scores.setStyleSheet(
-            "color: #4fc3f7; font-size: 12px; background: transparent;"
+            "color: #5B6CF6; font-size: 12px; background: transparent;"
         )
 
         # ── 하단 버튼 ──
@@ -195,10 +201,10 @@ class SimulationScreen(QWidget):
         self.btn_item = QPushButton("⚡ 긴급 아이템 사용")
         self.btn_item.setFixedHeight(38)
         self.btn_item.setStyleSheet("""
-            QPushButton { background:#1565C0; color:#fff; border-radius:4px;
-                          font-size:12px; border:1px solid #1976D2; padding:0 14px; }
-            QPushButton:hover { background:#1976D2; }
-            QPushButton:disabled { background:#0d1525; color:#334455; border-color:#1e3a5f; }
+            QPushButton { background:#5B6CF6; color:#fff; border-radius:4px;
+                          font-size:12px; border:1px solid #4A5CE0; padding:0 14px; }
+            QPushButton:hover { background:#4A5CE0; }
+            QPushButton:disabled { background:#FFFFFF; color:#ADB5BD; border-color:#E9ECEF; }
         """)
         self.btn_item.setEnabled(False)
         self.btn_item.clicked.connect(self._on_use_item)
@@ -227,19 +233,34 @@ class SimulationScreen(QWidget):
     def _make_player_panel(self, slot: str) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
+            "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 6px; }"
         )
         lay = QVBoxLayout(frame)
         lay.setContentsMargins(14, 10, 14, 10)
         lay.setSpacing(4)
 
-        tag_color = "#ffd700" if slot == "a" else "#4fc3f7"
+        tag_color = "#5B6CF6" if slot == "a" else "#868E96"
         tag = QLabel("내 선수" if slot == "a" else "상대")
         tag.setStyleSheet(f"color:{tag_color}; font-size:11px; font-weight:bold; background:transparent;")
+
+        # 선수 이미지 아바타
+        avatar = QLabel("?")
+        avatar.setObjectName(f"avatar_{slot}")
+        avatar.setFixedSize(64, 64)
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet(
+            "background: #EEF2FF; color: #5B6CF6; font-size: 20px; "
+            "font-weight: bold; border-radius: 32px; border: 2px solid #C5D0E8;"
+        )
+        avatar_row = QHBoxLayout()
+        avatar_row.addStretch()
+        avatar_row.addWidget(avatar)
+        avatar_row.addStretch()
 
         name = QLabel("—")
         name.setObjectName(f"name_{slot}")
         name.setStyleSheet("font-size:18px; font-weight:bold; background:transparent;")
+        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         grade = QLabel("")
         grade.setObjectName(f"grade_{slot}")
@@ -253,9 +274,10 @@ class SimulationScreen(QWidget):
         fatigue = QLabel("")
         fatigue.setObjectName(f"fat_{slot}")
         fatigue.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        fatigue.setStyleSheet("color:#EF9A9A; font-size:11px; background:transparent;")
+        fatigue.setStyleSheet("color:#FF6B6B; font-size:11px; background:transparent;")
 
         lay.addWidget(tag)
+        lay.addLayout(avatar_row)
         lay.addWidget(name)
         lay.addWidget(grade)
         lay.addWidget(cond)
@@ -265,21 +287,65 @@ class SimulationScreen(QWidget):
     def _make_build_frame(self) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
+            "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 6px; }"
         )
         lay = QVBoxLayout(frame)
-        lay.setContentsMargins(20, 16, 20, 16)
-        lay.setSpacing(12)
+        lay.setContentsMargins(20, 12, 20, 12)
+        lay.setSpacing(10)
 
-        title = QLabel("빌드를 선택하세요")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(
-            "color: #ffd700; font-size: 15px; font-weight: bold; background: transparent;"
+        # ── 전략 선택 섹션 ──
+        strat_title = QLabel("① 전략 선택")
+        strat_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        strat_title.setStyleSheet(
+            "color: #F59E0B; font-size: 13px; font-weight: bold; background: transparent;"
         )
+
+        strat_row = QHBoxLayout()
+        strat_row.setSpacing(8)
+        self.strategy_btns: list[QPushButton] = []
+        STRAT_INFO = [
+            ("초반집중", "초반 +20\n후반 −10"),
+            ("균형",     "균형 운영\n변동 없음"),
+            ("후반체력전", "초반 −10\n후반 +20"),
+        ]
+        for sname, sdesc in STRAT_INFO:
+            btn = QPushButton(f"{sname}\n{sdesc}")
+            btn.setProperty("_stype", sname)
+            btn.setMinimumHeight(60)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #FFFFFF; color: #495057;
+                    border: 1px solid #DEE2E6; border-radius: 10px;
+                    font-size: 11px; padding: 4px 6px;
+                }
+                QPushButton:hover { border-color: #5B6CF6; color: #5B6CF6; background: #EEF2FF; }
+                QPushButton:disabled { color: #ADB5BD; border-color: #E9ECEF; background: #F8F9FA; }
+            """)
+            btn.clicked.connect(lambda _, s=sname: self._on_strategy_picked(s))
+            self.strategy_btns.append(btn)
+            strat_row.addWidget(btn)
+
+        self.lbl_strategy_picked = QLabel("")
+        self.lbl_strategy_picked.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_strategy_picked.setStyleSheet(
+            "color: #5B6CF6; font-size: 12px; background: transparent;"
+        )
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("color: #E9ECEF;")
+
+        # ── 빌드 선택 섹션 ──
+        build_title = QLabel("② 빌드 선택")
+        build_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        build_title.setStyleSheet(
+            "color: #868E96; font-size: 13px; font-weight: bold; background: transparent;"
+        )
+        build_title.setObjectName("build_title_lbl")
 
         rps_hint = QLabel("가위  ▶  보  ▶  바위  ▶  가위  (앞이 뒤를 이김)")
         rps_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        rps_hint.setStyleSheet("color: #2a5080; font-size: 11px; background: transparent;")
+        rps_hint.setStyleSheet("color: #ADB5BD; font-size: 11px; background: transparent;")
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
@@ -287,19 +353,16 @@ class SimulationScreen(QWidget):
         for btype in BUILD_TYPES:
             btn = QPushButton(btype)
             btn.setProperty("_btype", btype)
-            btn.setMinimumHeight(56)
+            btn.setMinimumHeight(52)
+            btn.setEnabled(False)   # 전략 선택 후 활성화
             btn.setStyleSheet("""
                 QPushButton {
-                    background: #0f2040; color: #c8d8e8;
-                    border: 1px solid #1e3a5f; border-radius: 5px;
+                    background: #FFFFFF; color: #495057;
+                    border: 1px solid #DEE2E6; border-radius: 10px;
                     font-size: 12px; padding: 4px 10px;
                 }
-                QPushButton:hover {
-                    border-color: #4fc3f7; color: #ffd700; background: #0d1830;
-                }
-                QPushButton:disabled {
-                    color: #334455; border-color: #1e3a5f; background: #060c18;
-                }
+                QPushButton:hover { border-color: #5B6CF6; color: #5B6CF6; background: #EEF2FF; }
+                QPushButton:disabled { color: #ADB5BD; border-color: #E9ECEF; background: #F8F9FA; }
             """)
             btn.clicked.connect(lambda _, b=btype: self._on_build_picked(b))
             self.build_btns.append(btn)
@@ -309,30 +372,31 @@ class SimulationScreen(QWidget):
         self.lbl_build_reveal.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_build_reveal.setWordWrap(True)
         self.lbl_build_reveal.setStyleSheet(
-            "color: #c8d8e8; font-size: 13px; background: transparent; line-height: 1.5;"
+            "color: #212529; font-size: 13px; background: transparent; line-height: 1.5;"
         )
 
         self.lbl_build_result = QLabel("")
         self.lbl_build_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_build_result.setStyleSheet(
-            "color: #ffd700; font-size: 14px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 14px; font-weight: bold; background: transparent;"
         )
 
-        lay.addStretch()
-        lay.addWidget(title)
+        lay.addWidget(strat_title)
+        lay.addLayout(strat_row)
+        lay.addWidget(self.lbl_strategy_picked)
+        lay.addWidget(sep)
+        lay.addWidget(build_title)
         lay.addWidget(rps_hint)
         lay.addLayout(btn_row)
-        lay.addSpacing(8)
         lay.addWidget(self.lbl_build_reveal)
         lay.addWidget(self.lbl_build_result)
-        lay.addStretch()
 
         return frame
 
     def _make_commentary_frame(self) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet(
-            "QFrame { background: #0d1525; border: 1px solid #1e3a5f; border-radius: 6px; }"
+            "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 6px; }"
         )
         cf_lay = QVBoxLayout(frame)
         cf_lay.setContentsMargins(16, 12, 16, 12)
@@ -347,12 +411,63 @@ class SimulationScreen(QWidget):
 
         return frame
 
+    def _make_rival_intro_frame(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame { background: #FFF5F5; border: 2px solid #FF6B6B; border-radius: 12px; }"
+        )
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(30, 20, 30, 20)
+        lay.setSpacing(16)
+
+        banner = QLabel("🔥 라이벌 매치!")
+        banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner.setStyleSheet(
+            "color: #FF6B6B; font-size: 22px; font-weight: bold; background: transparent;"
+        )
+
+        self.lbl_rival_quote_a = QLabel("")
+        self.lbl_rival_quote_a.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_rival_quote_a.setWordWrap(True)
+        self.lbl_rival_quote_a.setStyleSheet(
+            "color: #F59E0B; font-size: 15px; font-style: italic; background: transparent;"
+        )
+
+        vs_sep = QLabel("— VS —")
+        vs_sep.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vs_sep.setStyleSheet("color: #ADB5BD; font-size: 13px; background: transparent;")
+
+        self.lbl_rival_quote_b = QLabel("")
+        self.lbl_rival_quote_b.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_rival_quote_b.setWordWrap(True)
+        self.lbl_rival_quote_b.setStyleSheet(
+            "color: #5B6CF6; font-size: 15px; font-style: italic; background: transparent;"
+        )
+
+        h2h_lbl = QLabel("")
+        h2h_lbl.setObjectName("lbl_h2h")
+        h2h_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        h2h_lbl.setStyleSheet(
+            "color: #868E96; font-size: 12px; background: transparent;"
+        )
+
+        lay.addStretch()
+        lay.addWidget(banner)
+        lay.addWidget(h2h_lbl)
+        lay.addSpacing(10)
+        lay.addWidget(self.lbl_rival_quote_a)
+        lay.addWidget(vs_sep)
+        lay.addWidget(self.lbl_rival_quote_b)
+        lay.addStretch()
+
+        return frame
+
     @staticmethod
     def _commentary_label() -> QLabel:
         lbl = QLabel("")
         lbl.setWordWrap(True)
         lbl.setStyleSheet(
-            "color: #c8d8e8; font-size: 13px; background: transparent; padding: 3px 0;"
+            "color: #212529; font-size: 13px; background: transparent; padding: 3px 0;"
         )
         return lbl
 
@@ -390,15 +505,15 @@ class SimulationScreen(QWidget):
         # 결승전 특별 스타일
         if round_name == "결승":
             self.lbl_round_set.setStyleSheet(
-                "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
-                " border: 1px solid #ffd700; border-radius: 4px; padding: 2px 10px;"
+                "color: #F59E0B; font-size: 18px; font-weight: bold; background: transparent;"
+                " border: 2px solid #F59E0B; border-radius: 8px; padding: 2px 10px; background: #FFFBEB;"
             )
             self.lbl_rival_badge.setText(
                 (self.lbl_rival_badge.text() + "  " if self.lbl_rival_badge.text() else "") + "★ 결승전 ★"
             )
         else:
             self.lbl_round_set.setStyleSheet(
-                "color: #4fc3f7; font-size: 16px; font-weight: bold; background: transparent;"
+                "color: #5B6CF6; font-size: 16px; font-weight: bold; background: transparent;"
             )
         self._update_score()
         self._clear_commentary()
@@ -406,12 +521,38 @@ class SimulationScreen(QWidget):
         self.btn_next.setEnabled(False)
         self.btn_item.setEnabled(False)
 
-        # 첫 세트: 빌드 선택 화면으로
-        QTimer.singleShot(300, self._show_build_select)
+        # 첫 세트: 라이벌이면 인트로, 아니면 바로 빌드 선택
+        from core.balance import is_rival as _is_rival
+        if _is_rival(self._my_id, self._opp_id):
+            QTimer.singleShot(300, self._show_rival_intro)
+        else:
+            QTimer.singleShot(300, self._show_build_select)
 
     # ── 패널 채우기 ──────────────────────────────────────────
     def _fill_panel(self, slot: str, player: dict, condition: str, fatigue: int):
+        from PyQt6.QtGui import QPixmap
         panel = self.panel_a if slot == "a" else self.panel_b
+
+        # 아바타 이미지
+        avatar_lbl = panel.findChild(QLabel, f"avatar_{slot}")
+        if avatar_lbl:
+            img_path = get_player_image_path(player.get("name", ""))
+            if img_path:
+                px = QPixmap(img_path).scaled(
+                    64, 64,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                avatar_lbl.setPixmap(px)
+                avatar_lbl.setStyleSheet(
+                    "border-radius: 32px; background: #FFFFFF; border: 2px solid #E9ECEF;"
+                )
+            else:
+                avatar_lbl.setText(player.get("name", "?")[:1])
+                avatar_lbl.setStyleSheet(
+                    "background: #EEF2FF; color: #5B6CF6; font-size: 20px; "
+                    "font-weight: bold; border-radius: 32px; border: 2px solid #C5D0E8;"
+                )
 
         panel.findChild(QLabel, f"name_{slot}").setText(player.get("name", "?"))
 
@@ -422,7 +563,7 @@ class SimulationScreen(QWidget):
             GRADE_STYLE.get(grade, "") + " font-size:17px; background:transparent;"
         )
 
-        cond_color = CONDITION_COLOR.get(condition, "#c8d8e8")
+        cond_color = CONDITION_COLOR.get(condition, "#212529")
         cl = panel.findChild(QLabel, f"cond_{slot}")
         cl.setText(f"컨디션: {condition}")
         cl.setStyleSheet(
@@ -431,6 +572,25 @@ class SimulationScreen(QWidget):
 
         fl = panel.findChild(QLabel, f"fat_{slot}")
         fl.setText(f"피로도: {fatigue}/100")
+
+    def _set_panel_glow(self, winner_slot: str):
+        """세트 결과에 따라 패널 테두리 색 변경 (승리=금색, 패배=빨간색)"""
+        loser_slot = "b" if winner_slot == "a" else "a"
+        winner_panel = self.panel_a if winner_slot == "a" else self.panel_b
+        loser_panel  = self.panel_a if loser_slot  == "a" else self.panel_b
+        winner_panel.setStyleSheet(
+            "QFrame { background: #F0FFF4; border: 2px solid #51CF66; border-radius: 6px; }"
+        )
+        loser_panel.setStyleSheet(
+            "QFrame { background: #FFF5F5; border: 2px solid #FF6B6B; border-radius: 6px; }"
+        )
+
+    def _reset_panel_glow(self):
+        """패널 테두리를 기본값으로 복원"""
+        for panel in [self.panel_a, self.panel_b]:
+            panel.setStyleSheet(
+                "QFrame { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius: 6px; }"
+            )
 
     # ── 스코어 표시 ──────────────────────────────────────────
     def _update_score(self):
@@ -441,38 +601,132 @@ class SimulationScreen(QWidget):
         for lbl in [self.lbl_c1, self.lbl_c2, self.lbl_c3]:
             lbl.setText("")
 
+    # ── 라이벌 인트로 ────────────────────────────────────────
+    def _show_rival_intro(self):
+        """라이벌 매치 시작 시 양측 대사를 순차 표시"""
+        from core.balance import get_h2h_record
+        pa = _load_player(self._my_id)
+        pb = _load_player(self._opp_id)
+        pd_a = PLAYER_DATA.get(pa.get("name", ""), {})
+        pd_b = PLAYER_DATA.get(pb.get("name", ""), {})
+
+        rival_q_a = pd_a.get("rival_quote", "") or (pd_a.get("pre_match", [""])[0])
+        rival_q_b = pd_b.get("rival_quote", "") or (pd_b.get("pre_match", [""])[0])
+
+        # H2H 전적
+        h2h = get_h2h_record(self._my_id, self._opp_id)
+        if h2h["total"] > 0:
+            h2h_str = f"통산 전적: {pa['name']} {h2h['a_wins']}승 {h2h['b_wins']}패"
+        else:
+            h2h_str = "첫 번째 라이벌 맞대결"
+        # H2H 레이블 업데이트 (rival_intro_frame 안에)
+        h2h_lbl = self.rival_intro_frame.findChild(QLabel, "lbl_h2h")
+        if h2h_lbl:
+            h2h_lbl.setText(h2h_str)
+
+        self.lbl_rival_quote_a.setText(f'"{pa["name"]}: {rival_q_a}"' if rival_q_a else "")
+        self.lbl_rival_quote_b.setText("")  # 처음에는 숨김
+
+        self.mid_stack.setCurrentIndex(2)
+
+        # 2.2초 후 상대 대사 표시
+        QTimer.singleShot(2200, lambda: self.lbl_rival_quote_b.setText(
+            f'"{pb["name"]}: {rival_q_b}"' if rival_q_b else ""
+        ))
+        # 4.5초 후 빌드 선택으로 이동
+        QTimer.singleShot(4500, self._show_build_select)
+
     # ── 빌드 선택 화면 표시 ──────────────────────────────────
     def _show_build_select(self):
         set_num = len(self._all_sets) + 1
         total = self._sets_to_win * 2 - 1
+        self._reset_panel_glow()
         self.lbl_round_set.setText(
             f"{self._round_name}  —  {set_num}세트 / {total}세트"
         )
         if self._round_name == "결승":
             self.lbl_round_set.setStyleSheet(
-                "color: #ffd700; font-size: 18px; font-weight: bold; background: transparent;"
-                " border: 1px solid #ffd700; border-radius: 4px; padding: 2px 10px;"
+                "color: #F59E0B; font-size: 18px; font-weight: bold; background: transparent;"
+                " border: 2px solid #F59E0B; border-radius: 8px; padding: 2px 10px; background: #FFFBEB;"
             )
         else:
             self.lbl_round_set.setStyleSheet(
-                "color: #4fc3f7; font-size: 16px; font-weight: bold; background: transparent;"
+                "color: #5B6CF6; font-size: 16px; font-weight: bold; background: transparent;"
             )
         self._clear_commentary()
         self.lbl_set_result.setText("")
         self.btn_next.setEnabled(False)
         self.btn_item.setEnabled(False)
 
+        # 전략 버튼 초기화
+        for btn in self.strategy_btns:
+            btn.setEnabled(True)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #FFFFFF; color: #495057;
+                    border: 1px solid #DEE2E6; border-radius: 10px;
+                    font-size: 11px; padding: 4px 6px;
+                }
+                QPushButton:hover { border-color: #5B6CF6; color: #5B6CF6; background: #EEF2FF; }
+                QPushButton:disabled { color: #ADB5BD; border-color: #E9ECEF; background: #F8F9FA; }
+            """)
+        self.lbl_strategy_picked.setText("")
+        # 빌드 버튼 비활성화 (전략 먼저 골라야)
+        for btn in self.build_btns:
+            btn.setEnabled(False)
+        build_title = self.build_frame.findChild(QLabel, "build_title_lbl")
+        if build_title:
+            build_title.setStyleSheet(
+                "color: #868E96; font-size: 13px; font-weight: bold; background: transparent;"
+            )
+        self._pending_strategy = "균형"
+
         # 빌드 버튼 이름 업데이트 (종족별 빌드명)
         for btn in self.build_btns:
             btype = btn.property("_btype")
             bname = get_build_name(self._my_race, self._opp_race, btype)
             btn.setText(f"{btype}\n{bname}")
-            btn.setEnabled(True)
 
         self.lbl_build_reveal.setText("")
         self.lbl_build_result.setText("")
         self.lbl_phase_scores.setText("")
         self.mid_stack.setCurrentIndex(0)
+
+    # ── 전략 선택 처리 ───────────────────────────────────────
+    def _on_strategy_picked(self, strategy: str):
+        self._pending_strategy = strategy
+        # 전략 버튼 비활성화 + 선택된 것 강조
+        for btn in self.strategy_btns:
+            stype = btn.property("_stype")
+            if stype == strategy:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: #EEF2FF; color: #5B6CF6;
+                        border: 2px solid #5B6CF6; border-radius: 10px;
+                        font-size: 11px; padding: 4px 6px; font-weight: bold;
+                    }
+                """)
+            else:
+                btn.setEnabled(False)
+                btn.setStyleSheet("""
+                    QPushButton {
+                        color: #ADB5BD; border-color: #E9ECEF;
+                        background: #F8F9FA; border-radius: 10px;
+                        font-size: 11px; padding: 4px 6px;
+                    }
+                """)
+
+        strat_desc = {"초반집중": "초반에 모든 것을 쏟는다", "균형": "균형 잡힌 운영", "후반체력전": "후반까지 아껴둔다"}
+        self.lbl_strategy_picked.setText(f"✔ {strategy} — {strat_desc.get(strategy, '')}")
+
+        # 빌드 버튼 활성화 + 제목 강조
+        for btn in self.build_btns:
+            btn.setEnabled(True)
+        build_title = self.build_frame.findChild(QLabel, "build_title_lbl")
+        if build_title:
+            build_title.setStyleSheet(
+                "color: #F59E0B; font-size: 13px; font-weight: bold; background: transparent;"
+            )
 
     # ── 빌드 선택 처리 ───────────────────────────────────────
     def _on_build_picked(self, build: str):
@@ -500,17 +754,17 @@ class SimulationScreen(QWidget):
         if br > 0:
             self.lbl_build_result.setText("✔ 빌드 우위 — 초반 유리!")
             self.lbl_build_result.setStyleSheet(
-                "color: #4fc3f7; font-size: 14px; font-weight: bold; background: transparent;"
+                "color: #5B6CF6; font-size: 14px; font-weight: bold; background: transparent;"
             )
         elif br < 0:
             self.lbl_build_result.setText("✘ 빌드 열세 — 초반 불리...")
             self.lbl_build_result.setStyleSheet(
-                "color: #EF9A9A; font-size: 14px; font-weight: bold; background: transparent;"
+                "color: #FF6B6B; font-size: 14px; font-weight: bold; background: transparent;"
             )
         else:
             self.lbl_build_result.setText("▶ 무승부 — 순수 실력 대결!")
             self.lbl_build_result.setStyleSheet(
-                "color: #ffd700; font-size: 14px; font-weight: bold; background: transparent;"
+                "color: #F59E0B; font-size: 14px; font-weight: bold; background: transparent;"
             )
 
         # BUILD_REVEAL_DELAY_MS 후 시뮬레이션 진행
@@ -545,6 +799,7 @@ class SimulationScreen(QWidget):
             series_score=(self._a_wins, self._b_wins),
             build_a=self._pending_my_build,
             build_b=self._pending_ai_build,
+            strategy_a=self._pending_strategy,
         )
         self._all_sets.append(result)
 
@@ -622,6 +877,8 @@ class SimulationScreen(QWidget):
             f"★  {set_num}세트: {w_name} 승!   ( {self._a_wins} - {self._b_wins} ){badge}"
         )
         self._update_score()
+        winner_slot = "a" if result.winner_id == self._my_id else "b"
+        self._set_panel_glow(winner_slot)
 
         # 페이즈 결과 표시
         if result.phases:

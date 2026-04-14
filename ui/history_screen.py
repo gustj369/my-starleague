@@ -68,7 +68,7 @@ class HistoryScreen(QWidget):
         # 헤더
         hdr = QHBoxLayout()
         title = QLabel("대결 기록")
-        title.setStyleSheet("color: #ffd700; font-size: 22px; font-weight: bold; background: transparent;")
+        title.setStyleSheet("color: #212529; font-size: 22px; font-weight: bold; background: transparent;")
         self.btn_back = QPushButton("← 돌아가기")
         self.btn_back.clicked.connect(self.sig_back)
         hdr.addWidget(title)
@@ -85,7 +85,7 @@ class HistoryScreen(QWidget):
         hist_lay.setSpacing(6)
 
         hist_title = QLabel("전체 매치 히스토리")
-        hist_title.setStyleSheet("color: #4fc3f7; font-weight: bold; font-size: 14px; background: transparent;")
+        hist_title.setStyleSheet("color: #5B6CF6; font-weight: bold; font-size: 14px; background: transparent;")
 
         self.hist_table = QTableWidget()
         self.hist_table.setColumnCount(7)
@@ -115,7 +115,7 @@ class HistoryScreen(QWidget):
         record_lay.setSpacing(6)
 
         rec_title = QLabel("선수별 전적")
-        rec_title.setStyleSheet("color: #4fc3f7; font-weight: bold; font-size: 14px; background: transparent;")
+        rec_title.setStyleSheet("color: #5B6CF6; font-weight: bold; font-size: 14px; background: transparent;")
 
         self.rec_table = QTableWidget()
         self.rec_table.setColumnCount(7)
@@ -165,9 +165,9 @@ class HistoryScreen(QWidget):
                 ti = QTableWidgetItem(val)
                 ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if ci == 4:
-                    ti.setForeground(QColor("#ffd700"))
+                    ti.setForeground(QColor("#5B6CF6"))
                 elif ci == 5 and r.get("is_upset"):
-                    ti.setForeground(QColor("#FF6F00"))
+                    ti.setForeground(QColor("#FF6B6B"))
                 self.hist_table.setItem(row, ci, ti)
 
     def _fill_records(self):
@@ -191,7 +191,7 @@ class HistoryScreen(QWidget):
                 elif ci == 1:
                     ti.setForeground(QColor(RACE_COLORS.get(p["race"], "#fff")))
                 elif ci == 4:
-                    ti.setForeground(QColor("#81C784"))
+                    ti.setForeground(QColor("#51CF66"))
                 elif ci == 5:
-                    ti.setForeground(QColor("#EF9A9A"))
+                    ti.setForeground(QColor("#FF6B6B"))
                 self.rec_table.setItem(row, ci, ti)

@@ -15,23 +15,24 @@ CONDITION_MULT = {
 }
 
 CONDITION_COLOR = {
-    "최상": "#4fc3f7",
-    "보통": "#c8d8e8",
-    "저조": "#EF9A9A",
+    "최상": "#51CF66",
+    "보통": "#868E96",
+    "저조": "#FF6B6B",
 }
 
 # 등급별 컨디션 확률 [최상, 보통, 저조]
-# 고등급일수록 저조 확률↑ (강한 선수도 컨디션 난조 가능)
+# 고등급일수록 안정적(보통 비율↑), 저등급일수록 변동 폭 큼.
+# 모든 등급에서 기대 컨디션 배수 ≈ 1.0 (최상%=저조%로 중립 유지).
 CONDITION_PROB = {
-    "SSS": [0.20, 0.50, 0.30],
-    "SS":  [0.20, 0.50, 0.30],
-    "S":   [0.30, 0.50, 0.20],
-    "A":   [0.30, 0.50, 0.20],
-    "B":   [0.40, 0.45, 0.15],
-    "C":   [0.40, 0.45, 0.15],
-    "D":   [0.40, 0.45, 0.15],
-    "E":   [0.40, 0.45, 0.15],
-    "F":   [0.40, 0.45, 0.15],
+    "SSS": [0.15, 0.70, 0.15],   # 매우 안정적
+    "SS":  [0.18, 0.64, 0.18],
+    "S":   [0.20, 0.60, 0.20],   # 안정
+    "A":   [0.25, 0.50, 0.25],   # 균형
+    "B":   [0.30, 0.40, 0.30],   # 변동 있음
+    "C":   [0.33, 0.34, 0.33],   # 높은 변동
+    "D":   [0.35, 0.30, 0.35],
+    "E":   [0.35, 0.30, 0.35],
+    "F":   [0.35, 0.30, 0.35],
 }
 
 # ── 피로도 ────────────────────────────────────────────────────
@@ -149,6 +150,24 @@ def is_rival(a_id: int, b_id: int) -> bool:
     return get_rival_info(a_id, b_id) is not None
 
 
+def get_h2h_record(player_a_id: int, player_b_id: int) -> dict:
+    """두 선수 간 통산 맞대결 전적 반환
+    Returns: {"total": int, "a_wins": int, "b_wins": int}
+    """
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT COUNT(*) as total,
+                      SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) as a_wins
+               FROM match_results
+               WHERE (player_a_id = ? AND player_b_id = ?)
+                  OR (player_a_id = ? AND player_b_id = ?)""",
+            (player_a_id, player_a_id, player_b_id, player_b_id, player_a_id)
+        ).fetchone()
+    total = row["total"] or 0
+    a_wins = row["a_wins"] or 0
+    return {"total": total, "a_wins": a_wins, "b_wins": total - a_wins}
+
+
 # ── 이변 ──────────────────────────────────────────────────────
 def calc_upset_level(winner_grade: str, loser_grade: str) -> int:
     """이변 레벨 — 양수면 하위 등급이 상위 등급을 이긴 것"""
@@ -219,15 +238,18 @@ def calc_effective(
     return eff
 
 
-def calc_power(eff: dict, grade: str, extra_luck: int = 0,
+def calc_power(eff: dict, grade: str, extra_luck_range: int = 0,
                underdog_boost: int = 0, favorite_penalty: int = 0) -> float:
     """유효 스탯 → 전투력 (평균 + 랜덤 운).
 
+    extra_luck_range:  라이벌전 등 드라마 상황에서 운의 범위를 양방향 확장.
+                       (양쪽에 동일 상수를 더하면 상쇄되므로, 범위 확장으로 변동성↑)
     underdog_boost:    언더독 랜덤 상한 확장 (등급 차·모멘텀 기반)
     favorite_penalty:  강자 랜덤 상한 축소 (심리적 이완)
     """
     lo, hi = luck_range(grade)
-    adj_hi = hi + underdog_boost - favorite_penalty
-    luck = random.uniform(lo, adj_hi) + extra_luck
+    adj_lo = lo - extra_luck_range          # 하한도 확장 → 독립 변수로 진짜 변동성↑
+    adj_hi = hi + underdog_boost - favorite_penalty + extra_luck_range
+    luck = random.uniform(adj_lo, adj_hi)
     base = sum(eff[k] for k in STAT_KEYS) / len(STAT_KEYS)
     return round(base + luck, 2)
