@@ -1,9 +1,15 @@
 import sqlite3
 import os
+import sys
 from pathlib import Path
 
 # ── 슬롯 시스템 ───────────────────────────────────────────────
-_SAVES_DIR = Path(__file__).parent.parent.parent / "saves"
+# EXE 환경: 세이브 파일을 AppData\Roaming\마이스타리그\saves\ 에 저장
+# 개발 환경: 프로젝트 루트/saves/ 에 저장
+if getattr(sys, 'frozen', False):
+    _SAVES_DIR = Path(os.getenv('APPDATA', Path.home())) / '마이스타리그' / 'saves'
+else:
+    _SAVES_DIR = Path(__file__).parent.parent.parent / "saves"
 _ACTIVE_SLOT: int = -1   # 선택된 슬롯 인덱스 (0~4)
 
 

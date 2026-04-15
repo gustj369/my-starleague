@@ -262,11 +262,17 @@ def _finish_tournament(tid: int):
     my_id = t['my_player_id']
     champion_id = final[0].get('winner_id')
 
+    # 내 선수가 결승에 참가했는지 확인
+    m = final[0]
+    my_in_final = (m['player_a_id'] == my_id or m['player_b_id'] == my_id)
+
     if champion_id == my_id:
         result = '우승'
         add_gold(ROUND_REWARDS['결승'])
+    elif my_in_final:
+        result = '준우승'   # 내 선수가 결승에서 패배
     else:
-        result = '준우승'
+        result = '완료'     # 내 선수는 이미 탈락 — 우승/준우승 아님
 
     with get_connection() as conn:
         conn.execute(
@@ -301,8 +307,9 @@ def get_elimination_round(tid: int) -> str:
     t = get_tournament(tid)
     if not t:
         return '알 수 없음'
-    if t.get('result'):
-        return t['result']
+    result = t.get('result')
+    if result and result != '완료':
+        return result   # '우승' 또는 '준우승'
 
     my_id = t['my_player_id']
     for rnd in ROUNDS:
@@ -310,5 +317,8 @@ def get_elimination_round(tid: int) -> str:
             if m['status'] == 'completed':
                 if m['player_a_id'] == my_id or m['player_b_id'] == my_id:
                     if m['winner_id'] != my_id:
+                        # 결승에서 졌으면 준우승으로 처리
+                        if rnd == '결승':
+                            return '준우승'
                         return f'{rnd} 탈락'
     return '진행중'

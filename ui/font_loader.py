@@ -1,9 +1,15 @@
 """게임 폰트 로더 — Press Start 2P (헤더), Orbitron (수치), Malgun Gothic (한글 본문)"""
 import os
+import sys
 from pathlib import Path
 from PyQt6.QtGui import QFontDatabase
 
-_FONTS_DIR = Path(__file__).parent.parent / "fonts"
+# EXE 환경: sys._MEIPASS (번들 임시 폴더) / fonts
+# 개발 환경: 소스 루트 / fonts
+if getattr(sys, 'frozen', False):
+    _FONTS_DIR = Path(sys._MEIPASS) / "fonts"
+else:
+    _FONTS_DIR = Path(__file__).parent.parent / "fonts"
 
 _FONT_FILES = {
     "press_start": "PressStart2P.ttf",
