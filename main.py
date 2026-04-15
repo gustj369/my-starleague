@@ -427,14 +427,27 @@ class MainWindow(QMainWindow):
 
 def main():
     # DB 초기화는 슬롯 선택 후에 수행 (슬롯 선택 전엔 DB 경로 미확정)
-    app = QApplication(sys.argv)
-    app.setApplicationName("마이 스타리그")
-    load_fonts()   # Press Start 2P, Orbitron 등록
-    app.setStyleSheet(MAIN_QSS)
+    import traceback
+    try:
+        app = QApplication(sys.argv)
+        app.setApplicationName("마이 스타리그")
+        load_fonts()   # Press Start 2P, Orbitron 등록
+        app.setStyleSheet(MAIN_QSS)
 
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
+        win = MainWindow()
+        win.show()
+        sys.exit(app.exec())
+    except Exception as exc:
+        # EXE 배포 환경에서 예외를 파일에 기록
+        if getattr(sys, 'frozen', False):
+            import pathlib, datetime
+            log_dir = pathlib.Path(os.getenv('APPDATA', '')) / '마이스타리그'
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = log_dir / 'error.log'
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n[{datetime.datetime.now()}]\n")
+                f.write(traceback.format_exc())
+        raise
 
 
 if __name__ == "__main__":

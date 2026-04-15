@@ -1,15 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
+# 빌드 명령: pyinstaller my_starleague.spec
+# PyQt6 플러그인 전체 수집 필수 (--collect-all PyQt6)
 block_cipher = None
+
+from PyInstaller.utils.hooks import collect_all
+
+pyqt6_datas, pyqt6_binaries, pyqt6_hiddenimports = collect_all('PyQt6')
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
-    binaries=[],
-    datas=[
-        ('fonts/*.ttf', 'fonts'),
-    ],
-    hiddenimports=[
-        'PyQt6', 'PyQt6.QtWidgets', 'PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.sip',
+    binaries=pyqt6_binaries,
+    datas=pyqt6_datas + [('fonts/*.ttf', 'fonts')],
+    hiddenimports=pyqt6_hiddenimports + [
         'sqlite3',
         'core.balance', 'core.builds', 'core.grade', 'core.growth_events',
         'core.match', 'core.player_data', 'core.season_events', 'core.tournament',
@@ -40,8 +43,7 @@ exe = EXE(
     name='StarLeague',
     debug=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
+    upx=False,
     runtime_tmpdir=None,
-    console=False,
+    console=False,      # GUI 전용, 콘솔창 없음
 )
