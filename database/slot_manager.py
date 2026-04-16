@@ -1,13 +1,20 @@
 """5슬롯 세이브 파일 관리"""
 import sqlite3
+import sys
+import os
 from pathlib import Path
 
-SAVES_DIR = Path(__file__).parent.parent.parent / "saves"
+# db.py 와 동일한 경로 로직 — EXE / 개발 환경 분기
+if getattr(sys, 'frozen', False):
+    SAVES_DIR = Path(os.getenv('APPDATA', Path.home())) / '마이스타리그' / 'saves'
+else:
+    SAVES_DIR = Path(__file__).parent.parent.parent / "saves"
+
 SLOT_COUNT = 5
 
 
 def get_slot_db_path(slot_idx: int) -> Path:
-    SAVES_DIR.mkdir(exist_ok=True)
+    SAVES_DIR.mkdir(parents=True, exist_ok=True)   # parents=True: 부모 폴더 자동 생성
     return SAVES_DIR / f"save_{slot_idx}.db"
 
 

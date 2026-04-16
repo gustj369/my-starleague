@@ -20,7 +20,7 @@ def set_active_slot(slot_idx: int):
 
 def get_db_path() -> str:
     """현재 활성 슬롯의 DB 파일 경로 반환"""
-    _SAVES_DIR.mkdir(exist_ok=True)
+    _SAVES_DIR.mkdir(parents=True, exist_ok=True)   # ← parents=True 필수 (첫 실행 시 부모 폴더 없음)
     return str(_SAVES_DIR / f"save_{_ACTIVE_SLOT}.db")
 
 
