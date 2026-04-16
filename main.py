@@ -234,8 +234,14 @@ class MainWindow(QMainWindow):
             self._fade_anim.setEndValue(1.0)
             self._fade_anim.start()
 
+    # 내비게이션 서브 화면 인덱스 집합 (이 화면에서 누르면 _pre_nav_idx 갱신 X)
+    _NAV_SCREENS = frozenset({IDX_PLAYERS, IDX_SHOP, IDX_HISTORY, IDX_RANKING})
+
     def _nav_to(self, idx: int):
-        self._pre_nav_idx = self.stack.currentIndex()
+        current = self.stack.currentIndex()
+        # 게임 화면(브라켓 등)일 때만 저장 — 이미 서브 화면이면 덮어쓰지 않음
+        if current not in self._NAV_SCREENS:
+            self._pre_nav_idx = current
         if idx == IDX_PLAYERS:
             self.s_players.refresh()
         elif idx == IDX_SHOP:

@@ -85,15 +85,15 @@ def apply_condition_item(condition: str) -> str:
 # 하위 등급일수록 랜덤 폭이 넓어 "운이 좋은 날" 이변 가능 (PRD v6)
 # B(±20) vs S(±10): 강한 B ~20% 이변 확률, 약한 B ~6% — 스탯 차이가 의미 있음
 _LUCK_RANGE: dict[str, int] = {
-    "SSS": 7,    # 최고 등급 — 안정적, 소폭 하향
+    "SSS": 7,
     "SS":  8,
     "S":   10,
-    "A":   13,   # 15→13: S와의 갭 축소, 이변 빈도 조정
-    "B":   18,   # 20→18: 약간 안정화
-    "C":   21,
+    "A":   13,
+    "B":   20,   # ±20: S(±10)와 격차 확보 → 이변 여지 확보
+    "C":   22,
     "D":   24,
     "E":   26,
-    "F":   28,   # 최하위 — 최대 변동성 (역전 드라마 가능)
+    "F":   28,
 }
 
 
@@ -106,10 +106,30 @@ def luck_range(grade: str) -> tuple[int, int]:
 def calc_grade_gap_boost(underdog_grade: str, favorite_grade: str) -> tuple[int, int]:
     """언더독 부스트 및 강자 패널티.
 
-    PRD v6: 등급 차 boost는 적용하지 않음 — 넓은 luck 범위로 자연스럽게 이변 발생.
-    다전제 모멘텀(comeback) 보정만 simulate_set에서 유지.
+    등급 차가 클수록 하위 등급 선수의 luck 상한이 확장되고,
+    상위 등급 선수의 luck 상한이 축소됨 → 이변 확률 증가.
+
+    Returns: (underdog_boost, favorite_penalty)
+
+    S vs B (2등급 차): underdog_boost=9, favorite_penalty=3
+      → B 평균 전투력 약 4.5 상승, S 약 1.5 하락 → 격차 12→6pt로 압축
+      → 세트 이변 확률 약 25~30%
     """
-    return (0, 0)
+    try:
+        u_idx = GRADE_ORDER.index(underdog_grade)
+        f_idx = GRADE_ORDER.index(favorite_grade)
+        diff = u_idx - f_idx   # 양수 = 언더독이 하위 등급
+    except ValueError:
+        return (0, 0)
+
+    if diff <= 0:
+        return (0, 0)
+    elif diff == 1:
+        return (5, 2)    # 1등급 차: 미세 보정
+    elif diff == 2:
+        return (9, 3)    # 2등급 차 (S vs B): 이변 ~25%
+    else:
+        return (13, 4)   # 3등급+ 차: 이변 ~35%
 
 
 def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
