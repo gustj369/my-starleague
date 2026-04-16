@@ -11,7 +11,10 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=pyqt6_binaries,
-    datas=pyqt6_datas + [('fonts/*.ttf', 'fonts')],
+    datas=pyqt6_datas + [
+        ('fonts/*.ttf', 'fonts'),
+        ('../image/*.png', 'image'),   # 선수 이미지 16장 번들
+    ],
     hiddenimports=pyqt6_hiddenimports + [
         'sqlite3',
         'core.balance', 'core.builds', 'core.grade', 'core.growth_events',

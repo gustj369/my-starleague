@@ -8,8 +8,14 @@ from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPolygonF, QFont, QPixma
 from core.grade import GRADE_COLORS
 from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY, RACE_SYMBOL
 
-# 이미지 디렉토리 (my_starleague/../image/)
-_IMAGE_DIR = Path(__file__).parent.parent.parent / "image"
+# 이미지 디렉토리
+# EXE 실행 시: sys._MEIPASS/image/ (번들된 이미지)
+# 개발 환경:   프로젝트 루트/../image/
+import sys as _sys
+if getattr(_sys, 'frozen', False):
+    _IMAGE_DIR = Path(_sys._MEIPASS) / "image"
+else:
+    _IMAGE_DIR = Path(__file__).parent.parent.parent / "image"
 
 
 def get_player_image_path(name: str) -> str:
