@@ -17,7 +17,7 @@ from core.balance import (
 )
 from core.commentary import get_set_commentary
 from core.builds import get_build_name, calc_build_result, BUILD_TYPES
-from ui.styles import GRADE_STYLE, RACE_COLORS
+from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_SYMBOL
 from ui.widgets import make_separator, get_player_image_path
 from core.player_data import PLAYER_DATA
 
@@ -159,10 +159,10 @@ class SimulationScreen(QWidget):
         vs_row.addWidget(self.panel_b, 1)
 
         # ── 스코어 ──
-        self.lbl_score = QLabel("0  —  0")
+        self.lbl_score = QLabel("○○   0 — 0   ○○")
         self.lbl_score.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_score.setStyleSheet(
-            "color: #F59E0B; font-size: 26px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 22px; font-weight: bold; background: transparent; letter-spacing: 2px;"
         )
 
         # ── 빌드 선택 프레임 / 중계 프레임 (스택) ──
@@ -552,10 +552,13 @@ class SimulationScreen(QWidget):
                     "border-radius: 32px; background: #FFFFFF; border: 2px solid #E9ECEF;"
                 )
             else:
-                avatar_lbl.setText(player.get("name", "?")[:1])
+                race = player.get("race", "")
+                symbol = RACE_SYMBOL.get(race, player.get("name", "?")[:1])
+                color  = RACE_COLORS.get(race, "#5B6CF6")
+                avatar_lbl.setText(symbol)
                 avatar_lbl.setStyleSheet(
-                    "background: #EEF2FF; color: #5B6CF6; font-size: 20px; "
-                    "font-weight: bold; border-radius: 32px; border: 2px solid #C5D0E8;"
+                    f"background: {color}1A; color: {color}; font-size: 24px; "
+                    f"font-weight: bold; border-radius: 32px; border: 2px solid {color}99;"
                 )
 
         panel.findChild(QLabel, f"name_{slot}").setText(player.get("name", "?"))
@@ -598,7 +601,10 @@ class SimulationScreen(QWidget):
 
     # ── 스코어 표시 ──────────────────────────────────────────
     def _update_score(self):
-        self.lbl_score.setText(f"{self._a_wins}  —  {self._b_wins}")
+        to_win = self._sets_to_win
+        a_dots = "●" * self._a_wins + "○" * (to_win - self._a_wins)
+        b_dots = "●" * self._b_wins + "○" * (to_win - self._b_wins)
+        self.lbl_score.setText(f"{a_dots}   {self._a_wins} — {self._b_wins}   {b_dots}")
 
     # ── 중계 초기화 ──────────────────────────────────────────
     def _clear_commentary(self):
@@ -856,8 +862,9 @@ class SimulationScreen(QWidget):
         w_name = pa.get("name") if result.winner_id == self._my_id else pb.get("name")
         set_num = result.set_number
 
-        # 이변/모멘텀 배지
+        # 이변/모멘텀 배지 & 색상
         badge = ""
+        result_color = "#F59E0B"   # 기본 황금색
         a_grade = pa.get("grade", "C")
         b_grade = pb.get("grade", "C")
         try:
@@ -874,13 +881,22 @@ class SimulationScreen(QWidget):
         b_before = self._b_wins - (1 if not winner_is_a else 0)
         comeback = (winner_is_a and b_before > a_before) or (not winner_is_a and a_before > b_before)
 
-        if underdog_won and grade_diff >= 2:
-            badge = "  ⚡ 이변 예감!"
+        if underdog_won and grade_diff >= 3:
+            badge = "  ┃ 💥 역대급 이변!! 역사에 남을 경기!!"
+            result_color = "#E03131"
+        elif underdog_won and grade_diff == 2:
+            badge = "  ┃ ⚡ 충격의 이변! 하위 등급의 반란!"
+            result_color = "#FF6B6B"
         elif underdog_won and grade_diff == 1:
-            badge = "  🔥 분위기 전환!"
+            badge = "  ┃ 🔥 이변! 분위기가 뒤집혔습니다!"
+            result_color = "#F76707"
         elif comeback:
-            badge = "  🔥 분위기 전환!"
+            badge = "  ┃ 🔥 역전! 분위기가 살아납니다!"
+            result_color = "#F76707"
 
+        self.lbl_set_result.setStyleSheet(
+            f"color: {result_color}; font-size: 18px; font-weight: bold; background: transparent;"
+        )
         self.lbl_set_result.setText(
             f"★  {set_num}세트: {w_name} 승!   ( {self._a_wins} - {self._b_wins} ){badge}"
         )

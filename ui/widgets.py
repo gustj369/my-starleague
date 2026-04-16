@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPolygonF, QFont, QPixmap
 
 from core.grade import GRADE_COLORS
-from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
+from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY, RACE_SYMBOL
 
 # 이미지 디렉토리 (my_starleague/../image/)
 _IMAGE_DIR = Path(__file__).parent.parent.parent / "image"
@@ -18,8 +18,8 @@ def get_player_image_path(name: str) -> str:
     return str(path) if path.exists() else ""
 
 
-def make_player_avatar(name: str, size: int = 90) -> QLabel:
-    """선수 이미지 레이블 생성. 이미지 없으면 이름 이니셜 표시."""
+def make_player_avatar(name: str, size: int = 90, race: str = "") -> QLabel:
+    """선수 이미지 레이블 생성. 이미지 없으면 팩션 심볼+컬러로 표시."""
     lbl = QLabel()
     lbl.setFixedSize(size, size)
     lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -33,14 +33,19 @@ def make_player_avatar(name: str, size: int = 90) -> QLabel:
         )
         lbl.setPixmap(px)
         lbl.setStyleSheet(
-            f"border-radius: {size//2}px; background: #FFFFFF; border: 2px solid #E9ECEF;"
+            f"border-radius: {size//2}px; background: #FFFFFF; border: 3px solid #E9ECEF;"
         )
     else:
-        initial = name[0] if name else "?"
-        lbl.setText(initial)
+        # 팩션 심볼 + 컬러 테마 아바타
+        symbol = RACE_SYMBOL.get(race, "")
+        color  = RACE_COLORS.get(race, "#5B6CF6")
+        # 심볼이 없으면 이름 이니셜
+        display = symbol if symbol else (name[0] if name else "?")
+        lbl.setText(display)
         lbl.setStyleSheet(
-            f"background: #EEF2FF; color: #5B6CF6; font-size: {size//3}px; "
-            f"font-weight: bold; border-radius: {size//2}px; border: 1px solid #C5D0E8;"
+            f"background: {color}1A; color: {color}; font-size: {size * 4 // 9}px; "
+            f"font-weight: bold; border-radius: {size//2}px; "
+            f"border: 2px solid {color}88;"
         )
     return lbl
 
@@ -138,7 +143,9 @@ class PlayerCard(QFrame):
         layout.setSpacing(4)
 
         # ── 이미지 ──
-        self.lbl_avatar = make_player_avatar(self._player["name"], size=72)
+        self.lbl_avatar = make_player_avatar(
+            self._player["name"], size=72, race=self._player.get("race", "")
+        )
         self.lbl_avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar_row = QHBoxLayout()
         avatar_row.addStretch()
@@ -151,7 +158,8 @@ class PlayerCard(QFrame):
         self.lbl_name.setStyleSheet("font-size: 14px; font-weight: bold; background: transparent;")
 
         race = self._player["race"]
-        self.lbl_race = QLabel(RACE_DISPLAY.get(race, race))   # 오리지널 표시명
+        symbol = RACE_SYMBOL.get(race, "")
+        self.lbl_race = QLabel(f"{symbol} {RACE_DISPLAY.get(race, race)}")
         color = RACE_COLORS.get(race, "#ffffff")
         self.lbl_race.setStyleSheet(
             f"color: {color}; font-size: 11px; font-weight: bold; background: transparent;"
