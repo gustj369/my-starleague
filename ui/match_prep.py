@@ -11,7 +11,7 @@ from core.balance import (
     CONDITION_COLOR, get_locked_map_id, is_rival, get_h2h_record
 )
 from ui.widgets import StatBar, RadarChart, make_separator, make_player_avatar, get_player_image_path
-from ui.styles import RACE_COLORS, GRADE_STYLE
+from ui.styles import RACE_COLORS, RACE_DISPLAY, GRADE_STYLE
 from core.player_data import get_pre_match_quote, get_style
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
@@ -451,7 +451,7 @@ class MatchPrepScreen(QWidget):
 
         race = player["race"]
         rl = frame.findChild(QLabel, f"race_{slot}")
-        rl.setText(race)
+        rl.setText(RACE_DISPLAY.get(race, race))   # 오리지널 표시명 사용
         rl.setStyleSheet(
             f"color: {RACE_COLORS.get(race, '#fff')}; font-size: 12px; background: transparent;"
         )
@@ -469,9 +469,9 @@ class MatchPrepScreen(QWidget):
             return
         mp = self._maps[idx]
         bonuses = (
-            f"테란 {mp['terran_bonus']:+d}  |  "
-            f"저그 {mp['zerg_bonus']:+d}  |  "
-            f"프로토스 {mp['protoss_bonus']:+d}"
+            f"기동대 {mp['terran_bonus']:+d}  |  "
+            f"공세대 {mp['zerg_bonus']:+d}  |  "
+            f"수호대 {mp['protoss_bonus']:+d}"
         )
         self.lbl_bonus.setText(f"보정:  {bonuses}")
 

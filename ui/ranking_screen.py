@@ -8,10 +8,12 @@ from PyQt6.QtGui import QColor, QFont
 
 from database.db import get_connection
 from ui.widgets import make_separator
-from ui.styles import RACE_COLORS, GRADE_STYLE
+from ui.styles import RACE_COLORS, RACE_DISPLAY, GRADE_STYLE
 
 # ── 상수 ──────────────────────────────────────────────────────────
-RACES = ["전체", "테란", "저그", "프로토스"]
+# DB 저장값 / 탭 표시명 (인덱스 1:1 대응)
+RACES_DB      = ["전체", "테란",  "저그",  "프로토스"]
+RACES_DISPLAY = ["전체", "기동대", "공세대", "수호대"]
 
 COLS = ["순위", "선수명", "종족", "등급", "OVR", "경기", "승", "패", "승률", "랭킹점수"]
 COL_WIDTHS = [50, 110, 75, 55, 60, 55, 45, 45, 65, 80]
@@ -143,7 +145,7 @@ class RankingScreen(QWidget):
             }
             QTabBar::tab:hover { color: #5B6CF6; }
         """)
-        for race in RACES:
+        for race in RACES_DISPLAY:
             self.tab_bar.addTab(race)
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
 
@@ -172,13 +174,13 @@ class RankingScreen(QWidget):
 
     # ── 슬롯 ─────────────────────────────────────────────────────
     def _on_tab_changed(self, idx: int):
-        self._current_race = RACES[idx] if idx < len(RACES) else "전체"
+        self._current_race = RACES_DB[idx] if idx < len(RACES_DB) else "전체"
         self._reload_table()
 
     # ── 데이터 로드 ───────────────────────────────────────────────
     def refresh(self):
         """외부에서 화면 전환 시 호출 — DB 재조회 후 테이블 갱신"""
-        self._current_race = RACES[self.tab_bar.currentIndex()]
+        self._current_race = RACES_DB[self.tab_bar.currentIndex()]
         self._reload_table()
 
     def _reload_table(self):
@@ -198,7 +200,7 @@ class RankingScreen(QWidget):
             cells = [
                 str(rank),
                 entry["name"],
-                entry["race"],
+                RACE_DISPLAY.get(entry["race"], entry["race"]),
                 entry["grade"],
                 f"{entry['overall']:.1f}",
                 str(entry["games"]),

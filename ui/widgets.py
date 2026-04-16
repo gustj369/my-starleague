@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
 from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPolygonF, QFont, QPixmap
 
 from core.grade import GRADE_COLORS
-from ui.styles import GRADE_STYLE, RACE_COLORS
+from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
 
 # 이미지 디렉토리 (my_starleague/../image/)
 _IMAGE_DIR = Path(__file__).parent.parent.parent / "image"
@@ -151,7 +151,7 @@ class PlayerCard(QFrame):
         self.lbl_name.setStyleSheet("font-size: 14px; font-weight: bold; background: transparent;")
 
         race = self._player["race"]
-        self.lbl_race = QLabel(race)
+        self.lbl_race = QLabel(RACE_DISPLAY.get(race, race))   # 오리지널 표시명
         color = RACE_COLORS.get(race, "#ffffff")
         self.lbl_race.setStyleSheet(
             f"color: {color}; font-size: 11px; font-weight: bold; background: transparent;"

@@ -8,7 +8,7 @@ from PyQt6.QtGui import QColor
 
 from database.db import get_connection
 from ui.widgets import make_separator
-from ui.styles import RACE_COLORS
+from ui.styles import RACE_COLORS, RACE_DISPLAY
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
@@ -155,8 +155,8 @@ class HistoryScreen(QWidget):
             cols = [
                 str(r["match_id"]),
                 r["map_name"],
-                f"{r['a_name']} ({r['a_race']})",
-                f"{r['b_name']} ({r['b_race']})",
+                f"{r['a_name']} ({RACE_DISPLAY.get(r['a_race'], r['a_race'])})",
+                f"{r['b_name']} ({RACE_DISPLAY.get(r['b_race'], r['b_race'])})",
                 r["w_name"],
                 upset_val,
                 r["timestamp"][:16],
@@ -178,7 +178,7 @@ class HistoryScreen(QWidget):
             self.rec_table.insertRow(row)
             rate = f"{p['wins'] / p['total'] * 100:.0f}%" if p["total"] > 0 else "—"
             cols = [
-                p["name"], p["race"], p["grade"],
+                p["name"], RACE_DISPLAY.get(p["race"], p["race"]), p["grade"],
                 f"{p['overall']:.1f}",
                 str(p["wins"]), str(p["losses"]), rate
             ]

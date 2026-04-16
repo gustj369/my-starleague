@@ -8,7 +8,7 @@ from PyQt6.QtGui import QColor
 
 from database.db import get_connection, get_gold
 from ui.widgets import make_separator
-from ui.styles import GRADE_STYLE, RACE_COLORS
+from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
@@ -155,7 +155,7 @@ class FinalResultScreen(QWidget):
 
         race_color = RACE_COLORS.get(now["race"], "#fff")
         self.lbl_player.setText(
-            f"{now['name']}  ({now['race']})  —  토너먼트 여정 종료"
+            f"{now['name']}  ({RACE_DISPLAY.get(now['race'], now['race'])})  —  토너먼트 여정 종료"
         )
         self.lbl_player.setStyleSheet(
             f"color: {race_color}; font-size: 18px; background: transparent;"

@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 from database.db import get_connection
 from ui.widgets import StatBar, RadarChart, make_separator
-from ui.styles import RACE_COLORS, GRADE_STYLE
+from ui.styles import RACE_COLORS, RACE_DISPLAY, GRADE_STYLE
 from core.grade import GRADE_COLORS
 
 
@@ -181,7 +181,7 @@ class MatchScreen(QWidget):
 
             race = player["race"]
             rl = frame.findChild(QLabel, f"race_{slot}")
-            rl.setText(race)
+            rl.setText(RACE_DISPLAY.get(race, race))   # 오리지널 표시명
             rl.setStyleSheet(f"color: {RACE_COLORS.get(race, '#fff')}; font-size: 12px; background: transparent;")
 
             vals = [player[k] for k in STAT_KEYS]
@@ -197,9 +197,9 @@ class MatchScreen(QWidget):
             return
         mp = self._maps[idx]
         bonuses = (
-            f"테란 {mp['terran_bonus']:+d}  |  "
-            f"저그 {mp['zerg_bonus']:+d}  |  "
-            f"프로토스 {mp['protoss_bonus']:+d}"
+            f"기동대 {mp['terran_bonus']:+d}  |  "
+            f"공세대 {mp['zerg_bonus']:+d}  |  "
+            f"수호대 {mp['protoss_bonus']:+d}"
         )
         self.lbl_map_bonus.setText(f"종족 보정:  {bonuses}")
 

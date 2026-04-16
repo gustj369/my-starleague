@@ -8,6 +8,7 @@ from PyQt6.QtGui import QColor
 
 from database.db import get_connection, get_gold, set_gold
 from ui.widgets import make_separator
+from ui.styles import RACE_DISPLAY
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
@@ -165,7 +166,7 @@ class ShopScreen(QWidget):
         self.cmb_player.clear()
         for p in self._players:
             cnt = _count_player_items(p["id"])
-            self.cmb_player.addItem(f"{p['name']}  ({p['race']})  [{cnt}/{MAX_ITEMS}]")
+            self.cmb_player.addItem(f"{p['name']}  ({RACE_DISPLAY.get(p['race'], p['race'])})  [{cnt}/{MAX_ITEMS}]")
 
         self._reload_table()
 

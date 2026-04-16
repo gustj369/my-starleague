@@ -8,7 +8,7 @@ from PyQt6.QtGui import QColor
 
 from database.db import get_connection
 from ui.widgets import RadarChart, StatBar, make_separator
-from ui.styles import GRADE_STYLE, RACE_COLORS
+from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
 from ui.player_profile_dialog import PlayerProfileDialog
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
@@ -157,7 +157,8 @@ class PlayerManagerScreen(QWidget):
             row = self.table.rowCount()
             self.table.insertRow(row)
             cols = [
-                p["name"], p["race"], p["grade"], f"{p['overall']:.1f}",
+                p["name"], RACE_DISPLAY.get(p["race"], p["race"]),
+                p["grade"], f"{p['overall']:.1f}",
                 p["control"], p["attack"], p["defense"],
                 p["supply"], p["strategy"], p["sense"]
             ]
@@ -204,7 +205,7 @@ class PlayerManagerScreen(QWidget):
         if not player:
             return
 
-        self.lbl_detail_name.setText(f"{player['name']}  ({player['race']})")
+        self.lbl_detail_name.setText(f"{player['name']}  ({RACE_DISPLAY.get(player['race'], player['race'])})")
         race_color = RACE_COLORS.get(player["race"], "#fff")
         self.lbl_detail_name.setStyleSheet(
             f"color: {race_color}; font-size: 18px; font-weight: bold; background: transparent;"

@@ -118,8 +118,8 @@ class SimulationScreen(QWidget):
         self._commentary_queue: list[str] = []
         self._timer: QTimer | None = None
         self._match_over: bool = False
-        self._pending_my_build: str = "바위"
-        self._pending_ai_build: str = "바위"
+        self._pending_my_build: str = "수비"
+        self._pending_ai_build: str = "수비"
         self._pending_set_result: SetResult | None = None
         self._my_build_history: list[str] = []
         self._pending_strategy: str = "균형"
@@ -335,31 +335,35 @@ class SimulationScreen(QWidget):
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet("color: #E9ECEF;")
 
-        # ── 빌드 선택 섹션 ──
-        build_title = QLabel("② 빌드 선택")
-        build_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        build_title.setStyleSheet(
+        # ── 전술 선택 섹션 (PRD v11: 빌드→전술 삼각체계) ──────
+        tactic_title = QLabel("② 전술 선택")
+        tactic_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tactic_title.setStyleSheet(
             "color: #868E96; font-size: 13px; font-weight: bold; background: transparent;"
         )
-        build_title.setObjectName("build_title_lbl")
+        tactic_title.setObjectName("build_title_lbl")
 
-        rps_hint = QLabel("가위  ▶  보  ▶  바위  ▶  가위  (앞이 뒤를 이김)")
+        rps_hint = QLabel("공세  ▶  수비  ▶  기동  ▶  공세  (앞이 뒤를 이김)")
         rps_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         rps_hint.setStyleSheet("color: #ADB5BD; font-size: 11px; background: transparent;")
 
+        from core.builds import TACTIC_DESC
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         self.build_btns: list[QPushButton] = []
         for btype in BUILD_TYPES:
-            btn = QPushButton(btype)
+            desc = TACTIC_DESC.get(btype, "")
+            # 전술 설명 두 줄로 표시
+            short_desc = desc.split(".")[0] if desc else ""
+            btn = QPushButton(f"{btype}\n{short_desc}")
             btn.setProperty("_btype", btype)
-            btn.setMinimumHeight(52)
+            btn.setMinimumHeight(60)
             btn.setEnabled(False)   # 전략 선택 후 활성화
             btn.setStyleSheet("""
                 QPushButton {
                     background: #FFFFFF; color: #495057;
                     border: 1px solid #DEE2E6; border-radius: 10px;
-                    font-size: 12px; padding: 4px 10px;
+                    font-size: 11px; padding: 4px 10px;
                 }
                 QPushButton:hover { border-color: #5B6CF6; color: #5B6CF6; background: #EEF2FF; }
                 QPushButton:disabled { color: #ADB5BD; border-color: #E9ECEF; background: #F8F9FA; }
@@ -385,7 +389,7 @@ class SimulationScreen(QWidget):
         lay.addLayout(strat_row)
         lay.addWidget(self.lbl_strategy_picked)
         lay.addWidget(sep)
-        lay.addWidget(build_title)
+        lay.addWidget(tactic_title)
         lay.addWidget(rps_hint)
         lay.addLayout(btn_row)
         lay.addWidget(self.lbl_build_reveal)
@@ -681,11 +685,13 @@ class SimulationScreen(QWidget):
             )
         self._pending_strategy = "균형"
 
-        # 빌드 버튼 이름 업데이트 (종족별 빌드명)
+        # 전술 버튼 이름 업데이트 (전술 삼각체계)
+        from core.builds import TACTIC_NAMES, TACTIC_DESC
         for btn in self.build_btns:
             btype = btn.property("_btype")
-            bname = get_build_name(self._my_race, self._opp_race, btype)
-            btn.setText(f"{btype}\n{bname}")
+            bname = TACTIC_NAMES.get(btype, btype)
+            short = TACTIC_DESC.get(btype, "").split(".")[0]
+            btn.setText(f"{bname}  [{btype}]\n{short}")
 
         self.lbl_build_reveal.setText("")
         self.lbl_build_result.setText("")
@@ -739,11 +745,12 @@ class SimulationScreen(QWidget):
         ai_build = self._pick_ai_build()
         self._pending_ai_build = ai_build
 
-        # 빌드 이름
-        my_bname = get_build_name(self._my_race, self._opp_race, build)
-        ai_bname = get_build_name(self._opp_race, self._my_race, ai_build)
+        # 전술 이름
+        from core.builds import TACTIC_NAMES
+        my_bname = TACTIC_NAMES.get(build, build)
+        ai_bname = TACTIC_NAMES.get(ai_build, ai_build)
 
-        # 빌드 공개
+        # 전술 공개
         self.lbl_build_reveal.setText(
             f"내 선수  :  {my_bname}  ({build})\n"
             f"상  대   :  {ai_bname}  ({ai_build})"
@@ -752,17 +759,17 @@ class SimulationScreen(QWidget):
         # 결과 뱃지
         br = calc_build_result(build, ai_build)
         if br > 0:
-            self.lbl_build_result.setText("✔ 빌드 우위 — 초반 유리!")
+            self.lbl_build_result.setText("✔ 전술 우위 — 초반 유리!")
             self.lbl_build_result.setStyleSheet(
                 "color: #5B6CF6; font-size: 14px; font-weight: bold; background: transparent;"
             )
         elif br < 0:
-            self.lbl_build_result.setText("✘ 빌드 열세 — 초반 불리...")
+            self.lbl_build_result.setText("✘ 전술 열세 — 초반 불리...")
             self.lbl_build_result.setStyleSheet(
                 "color: #FF6B6B; font-size: 14px; font-weight: bold; background: transparent;"
             )
         else:
-            self.lbl_build_result.setText("▶ 무승부 — 순수 실력 대결!")
+            self.lbl_build_result.setText("▶ 전술 동등 — 순수 실력 대결!")
             self.lbl_build_result.setStyleSheet(
                 "color: #F59E0B; font-size: 14px; font-weight: bold; background: transparent;"
             )
@@ -771,14 +778,15 @@ class SimulationScreen(QWidget):
         QTimer.singleShot(BUILD_REVEAL_DELAY_MS, self._run_set_after_build)
 
     def _pick_ai_build(self) -> str:
-        """AI 빌드 선택. 직전 세트에서 플레이어가 이겼으면 40% 확률로 카운터 빌드."""
-        from core.builds import RPS_WINS
+        """AI 전술 선택. 직전 세트에서 플레이어가 이겼으면 40% 확률로 카운터 전술."""
+        from core.builds import TACTIC_WINS
         if self._all_sets and self._my_build_history:
             last_set = self._all_sets[-1]
             last_my_build = self._my_build_history[-1]
             if last_set.winner_id == self._my_id:
-                # 플레이어가 직전 세트 승리 → AI가 카운터 빌드로 맞대응
-                counter = {v: k for k, v in RPS_WINS.items()}.get(last_my_build)
+                # 플레이어가 직전 세트 승리 → AI가 카운터 전술로 맞대응
+                # 카운터 = 내 전술을 이기는 전술 (역관계 반전)
+                counter = {v: k for k, v in TACTIC_WINS.items()}.get(last_my_build)
                 if counter and _random.random() < 0.40:
                     return counter
         return _random.choice(BUILD_TYPES)

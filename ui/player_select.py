@@ -7,7 +7,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 from database.db import get_connection
 from ui.widgets import PlayerCard, make_separator
-from ui.styles import RACE_COLORS, GRADE_STYLE
+from ui.styles import RACE_COLORS, RACE_DISPLAY, GRADE_STYLE
+
+# 표시명 → DB값 역매핑
+RACE_DISPLAY_INV = {v: k for k, v in RACE_DISPLAY.items()}
 from core.player_data import get_style
 
 
@@ -63,7 +66,7 @@ class PlayerSelectScreen(QWidget):
         filter_row.addStretch()
         filter_row.addWidget(QLabel("종족:"))
         self.cmb_race = QComboBox()
-        self.cmb_race.addItems(["전체", "테란", "저그", "프로토스"])
+        self.cmb_race.addItems(["전체"] + list(RACE_DISPLAY.values()))  # 기동대/공세대/수호대
         self.cmb_race.currentTextChanged.connect(self._rebuild)
         filter_row.addWidget(self.cmb_race)
         filter_row.addSpacing(16)
@@ -142,7 +145,8 @@ class PlayerSelectScreen(QWidget):
         sort_by = ["overall", "name"][sort_idx] if sort_idx < 2 else "overall"
         players = _load_all_players(sort_by)
         if race != "전체":
-            players = [p for p in players if p["race"] == race]
+            db_race = RACE_DISPLAY_INV.get(race, race)
+            players = [p for p in players if p["race"] == db_race]
 
         while self.grid.count():
             item = self.grid.takeAt(0)
@@ -195,7 +199,7 @@ class PlayerSelectScreen(QWidget):
         color = RACE_COLORS.get(p["race"], "#fff")
         grade_str = GRADE_STYLE.get(p["grade"], "")
         self.lbl_selected.setText(
-            f"선택: {p['name']}  ({p['race']})  ◆ {p['grade']}  OVR {p['overall']:.1f}"
+            f"선택: {p['name']}  ({RACE_DISPLAY.get(p['race'], p['race'])})  ◆ {p['grade']}  OVR {p['overall']:.1f}"
         )
         self.lbl_selected.setStyleSheet(f"color: {color}; font-size: 14px; font-weight: bold; background: transparent;")
         self.btn_confirm.setEnabled(True)
@@ -214,7 +218,8 @@ class PlayerSelectScreen(QWidget):
         players = _load_all_players()
         race = self.cmb_race.currentText() if hasattr(self, "cmb_race") else "전체"
         if race != "전체":
-            players = [p for p in players if p["race"] == race]
+            db_race = RACE_DISPLAY_INV.get(race, race)
+            players = [p for p in players if p["race"] == db_race]
         if players:
             p = _random.choice(players)
             self._on_card_click(p["id"])

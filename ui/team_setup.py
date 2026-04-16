@@ -7,7 +7,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 
 from database.db import get_connection
 from ui.widgets import PlayerCard, make_separator
-from ui.styles import RACE_COLORS
+from ui.styles import RACE_COLORS, RACE_DISPLAY
+
+# 표시명 → DB값 역매핑
+RACE_DISPLAY_INV = {v: k for k, v in RACE_DISPLAY.items()}
 
 
 def _load_players(race_filter: str = "전체") -> list[dict]:
@@ -56,7 +59,7 @@ class TeamSetupScreen(QWidget):
         filter_row = QHBoxLayout()
         filter_row.addWidget(QLabel("종족 필터:"))
         self.cmb_race = QComboBox()
-        self.cmb_race.addItems(["전체", "테란", "저그", "프로토스"])
+        self.cmb_race.addItems(["전체"] + list(RACE_DISPLAY.values()))
         self.cmb_race.currentTextChanged.connect(self._on_filter_changed)
         filter_row.addWidget(self.cmb_race)
         filter_row.addStretch()
@@ -120,8 +123,10 @@ class TeamSetupScreen(QWidget):
 
     # ──────────────────────────────────────────
     def _load_players(self):
-        race = self.cmb_race.currentText() if hasattr(self, "cmb_race") else "전체"
-        players = _load_players(race)
+        display = self.cmb_race.currentText() if hasattr(self, "cmb_race") else "전체"
+        # 표시명 → DB값 변환 (전체는 그대로)
+        db_race = RACE_DISPLAY_INV.get(display, display)
+        players = _load_players(db_race)
         self._rebuild_grid(players)
 
     def _rebuild_grid(self, players: list[dict]):
@@ -165,14 +170,14 @@ class TeamSetupScreen(QWidget):
             self.lbl_sel_b.setStyleSheet("color: #868E96; font-size: 13px; background: transparent;")
         elif self._selected_a is None:
             self._selected_a = player_id
-            self.lbl_sel_a.setText(f"{player['name']} ({player['race']})")
+            self.lbl_sel_a.setText(f"{player['name']} ({RACE_DISPLAY.get(player['race'], player['race'])})")
             color = RACE_COLORS.get(player["race"], "#ffffff")
             self.lbl_sel_a.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: bold; background: transparent;")
         elif self._selected_b is None:
             if player_id == self._selected_a:
                 return
             self._selected_b = player_id
-            self.lbl_sel_b.setText(f"{player['name']} ({player['race']})")
+            self.lbl_sel_b.setText(f"{player['name']} ({RACE_DISPLAY.get(player['race'], player['race'])})")
             color = RACE_COLORS.get(player["race"], "#ffffff")
             self.lbl_sel_b.setStyleSheet(f"color: {color}; font-size: 13px; font-weight: bold; background: transparent;")
 

@@ -7,7 +7,7 @@ from PyQt6.QtGui import QPixmap
 
 from database.db import get_connection
 from ui.widgets import get_player_image_path, make_separator
-from ui.styles import GRADE_STYLE, RACE_COLORS
+from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
 from core.player_data import PLAYER_DATA
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
@@ -89,7 +89,7 @@ class PlayerProfileDialog(QDialog):
             GRADE_STYLE.get(grade, "") + " font-size: 17px; background: transparent;"
         )
 
-        race_lbl = QLabel(p["race"])
+        race_lbl = QLabel(RACE_DISPLAY.get(p["race"], p["race"]))
         race_lbl.setStyleSheet(
             f"color: {RACE_COLORS.get(p['race'], '#fff')}; "
             f"font-size: 13px; background: transparent;"

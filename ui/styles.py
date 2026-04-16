@@ -271,3 +271,14 @@ RACE_COLORS = {
     "저그":    "#A855F7",
     "프로토스": "#F59E0B",
 }
+
+# ── 종족 표시명 (오리지널 IP — DB 값은 유지, UI 표시만 변경) ──
+# PRD v11: 스타크래프트 IP 제거. 전술 삼각 시스템 아키타입과 연동.
+#   테란 → 기동대 (Mobility archetype — 유연한 전술 운용)
+#   저그 → 공세대 (Aggression archetype — 빠른 압박)
+#   프로토스 → 수호대 (Defense archetype — 견고한 방어)
+RACE_DISPLAY = {
+    "테란":    "기동대",
+    "저그":    "공세대",
+    "프로토스": "수호대",
+}
