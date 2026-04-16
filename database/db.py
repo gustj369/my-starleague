@@ -192,6 +192,12 @@ def migrate_db():
         )
     """)
 
+    # SSS → Super 등급 이름 변경 마이그레이션 (기존 세이브 파일 호환)
+    try:
+        cur.execute("UPDATE players SET grade='Super' WHERE grade='SSS'")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 

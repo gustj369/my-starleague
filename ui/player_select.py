@@ -162,7 +162,7 @@ class PlayerSelectScreen(QWidget):
 
             # 배지 추가 (핸디캡 / 업셋 보너스)
             grade = p.get("grade", "C")
-            if grade in ("SSS", "SS"):
+            if grade in ("Super", "SS"):
                 badge = QLabel("⚠ 핸디캡", card)
                 badge.setStyleSheet(
                     "background: #7B1FA2; color: #fff; font-size: 9px; "

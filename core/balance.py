@@ -3,7 +3,7 @@ import random
 from database.db import get_connection
 
 STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-GRADE_ORDER = ["SSS", "SS", "S", "A", "B", "C", "D", "E", "F"]
+GRADE_ORDER = ["Super", "SS", "S", "A", "B", "C", "D", "E", "F"]
 
 # ── 컨디션 ────────────────────────────────────────────────────
 CONDITIONS = ["최상", "보통", "저조"]
@@ -24,7 +24,7 @@ CONDITION_COLOR = {
 # 고등급일수록 안정적(보통 비율↑), 저등급일수록 변동 폭 큼.
 # 모든 등급에서 기대 컨디션 배수 ≈ 1.0 (최상%=저조%로 중립 유지).
 CONDITION_PROB = {
-    "SSS": [0.15, 0.70, 0.15],   # 매우 안정적
+    "Super": [0.15, 0.70, 0.15], # 매우 안정적
     "SS":  [0.18, 0.64, 0.18],
     "S":   [0.20, 0.60, 0.20],   # 안정
     "A":   [0.25, 0.50, 0.25],   # 균형
@@ -85,7 +85,7 @@ def apply_condition_item(condition: str) -> str:
 # 하위 등급일수록 랜덤 폭이 넓어 "운이 좋은 날" 이변 가능 (PRD v6)
 # B(±20) vs S(±10): 강한 B ~20% 이변 확률, 약한 B ~6% — 스탯 차이가 의미 있음
 _LUCK_RANGE: dict[str, int] = {
-    "SSS": 7,
+    "Super": 7,
     "SS":  8,
     "S":   10,
     "A":   13,
@@ -135,7 +135,7 @@ def calc_grade_gap_boost(underdog_grade: str, favorite_grade: str) -> tuple[int,
 def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
     """SSS/SS 선수는 자신에게 가장 유리한 맵이 고정됨 (핸디캡)"""
     grade = player.get("grade", "C")
-    if grade not in ("SSS", "SS"):
+    if grade not in ("Super", "SS"):
         return None
 
     race = player.get("race", "")

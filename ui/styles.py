@@ -254,7 +254,7 @@ QSplitter::handle { background: #E9ECEF; }
 
 # ── 등급 스타일 ───────────────────────────────────────────────
 GRADE_STYLE = {
-    "SSS": "color: #B8860B; font-weight: bold; background: #FFF3CD; border-radius: 4px; padding: 1px 6px;",
+    "Super": "color: #B8860B; font-weight: bold; background: #FFF3CD; border-radius: 4px; padding: 1px 6px;",
     "SS":  "color: #5A5A5A; font-weight: bold; background: #E8E8E8; border-radius: 4px; padding: 1px 6px;",
     "S":   "color: #1971C2; font-weight: bold; background: #DBE9FF; border-radius: 4px; padding: 1px 6px;",
     "A":   "color: #2B8A3E; font-weight: bold; background: #D3F9D8; border-radius: 4px; padding: 1px 6px;",
