@@ -279,11 +279,15 @@ def calc_effective(
     fat_m = fatigue_mult(fat)
     cond_m = CONDITION_MULT.get(condition, 1.00)
 
+    # BUG-04 수정: map_bonus(지형 이점)는 선수의 컨디션·피로도와 무관한 환경 변수이므로
+    # fat_m * cond_m 배수 적용 밖에서 평탄 가산.
+    # 이전 코드에서는 map_bonus도 배수가 곱해져 최상 컨디션+최고 맵보너스 시
+    # 복합 증폭이 발생하였음.
     eff = {}
     for key in STAT_KEYS:
         base = player.get(key, 50)
         item_b = stat_items.get(key, 0)
-        val = (base + item_b + map_bonus + rival_bonus) * fat_m * cond_m
+        val = (base + item_b + rival_bonus) * fat_m * cond_m + map_bonus
         eff[key] = val
     return eff
 

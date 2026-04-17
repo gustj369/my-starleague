@@ -168,20 +168,38 @@ def seed():
                 (name, tb, zb, pb)
             )
 
-    # ── 아이템 (항상 최신 목록으로 유지) ─────────────────────
-    cur.execute("DELETE FROM items")
+    # ── 아이템 (UPSERT: 기존 아이템 업데이트, 신규만 삽입) ────────
+    # BUG-06 수정: DELETE FROM items 사용 시 ON DELETE CASCADE 로
+    # player_items 전체가 지워져 매 실행마다 선수 장착 아이템이 사라지는
+    # 치명적 버그 → 이름으로 EXISTS 체크 후 UPDATE / INSERT 로 대체.
     for name, desc, price, itype, ctrl, atk, def_, sup, strat, sen, cond_up, fat_rec in ITEMS:
-        cur.execute(
-            """INSERT INTO items
-               (name, description, price, item_type,
-                control_bonus, attack_bonus, defense_bonus,
-                supply_bonus, strategy_bonus, sense_bonus,
-                condition_up, fatigue_recover)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (name, desc, price, itype,
-             ctrl, atk, def_, sup, strat, sen,
-             cond_up, fat_rec)
-        )
+        existing = cur.execute(
+            "SELECT id FROM items WHERE name=?", (name,)
+        ).fetchone()
+        if existing:
+            cur.execute(
+                """UPDATE items
+                   SET description=?, price=?, item_type=?,
+                       control_bonus=?, attack_bonus=?, defense_bonus=?,
+                       supply_bonus=?, strategy_bonus=?, sense_bonus=?,
+                       condition_up=?, fatigue_recover=?
+                   WHERE name=?""",
+                (desc, price, itype,
+                 ctrl, atk, def_, sup, strat, sen,
+                 cond_up, fat_rec, name)
+            )
+        else:
+            cur.execute(
+                """INSERT INTO items
+                   (name, description, price, item_type,
+                    control_bonus, attack_bonus, defense_bonus,
+                    supply_bonus, strategy_bonus, sense_bonus,
+                    condition_up, fatigue_recover)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (name, desc, price, itype,
+                 ctrl, atk, def_, sup, strat, sen,
+                 cond_up, fat_rec)
+            )
 
     # ── 라이벌 (항상 최신 목록으로 유지) ─────────────────────
     name_to_id = {r["name"]: r["id"]

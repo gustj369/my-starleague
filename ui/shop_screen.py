@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
-from database.db import get_connection, get_gold, set_gold
+from database.db import get_connection, get_gold  # set_gold는 _buy_item 내부 트랜잭션으로 대체됨
 from ui.widgets import make_separator
 from ui.styles import RACE_DISPLAY
 
@@ -44,18 +44,35 @@ def _count_player_items(player_id: int) -> int:
 
 
 def _buy_item(player_id: int, item_id: int, price: int) -> str | None:
-    gold = get_gold()
-    if gold < price:
-        return f"골드가 부족합니다. (보유: {gold}G, 필요: {price}G)"
-    if _count_player_items(player_id) >= MAX_ITEMS:
-        return f"선수당 최대 {MAX_ITEMS}개 아이템만 장착 가능합니다."
+    """BUG-07 수정: 골드 조회·아이템 삽입·골드 차감을 단일 트랜잭션으로 원자화.
+    이전 구현(조회→INSERT→차감 분리)은 INSERT 성공 후 예외 시 무료 아이템이 되거나
+    중복 조회로 골드가 부정확하게 계산되는 TOCTOU 문제가 있었음.
+    """
     with get_connection() as conn:
+        # 단일 트랜잭션: 조회 + 삽입 + 차감
+        gold_row = conn.execute(
+            "SELECT value FROM game_state WHERE key='gold'"
+        ).fetchone()
+        gold = int(gold_row["value"]) if gold_row else 0
+
+        if gold < price:
+            return f"골드가 부족합니다. (보유: {gold}G, 필요: {price}G)"
+
+        cnt = conn.execute(
+            "SELECT COUNT(*) FROM player_items WHERE player_id=?", (player_id,)
+        ).fetchone()[0]
+        if cnt >= MAX_ITEMS:
+            return f"선수당 최대 {MAX_ITEMS}개 아이템만 장착 가능합니다."
+
         conn.execute(
             "INSERT INTO player_items (player_id, item_id) VALUES (?,?)",
             (player_id, item_id)
         )
+        conn.execute(
+            "UPDATE game_state SET value=? WHERE key='gold'",
+            (str(gold - price),)
+        )
         conn.commit()
-    set_gold(gold - price)
     return None
 
 

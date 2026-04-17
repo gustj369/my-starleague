@@ -51,6 +51,9 @@ def get_build_name(my_tactic: str, opp_tactic: str = "", build_type: str = "") -
     return TACTIC_NAMES.get(key, key)
 
 
+_VALID_TACTICS: frozenset[str] = frozenset(TACTIC_TYPES)
+
+
 def calc_build_result(tactic_a: str, tactic_b: str) -> int:
     """전술 우열 계산.
 
@@ -58,7 +61,13 @@ def calc_build_result(tactic_a: str, tactic_b: str) -> int:
         +1: a 우세 (a가 b를 이김)
          0: 무승부
         -1: b 우세 (b가 a를 이김)
+
+    BUG-01 수정: 유효하지 않은 전술 문자열(None, "" 등)이 입력될 경우
+    이전 코드에서는 TACTIC_WINS.get() 이 None 을 반환해 무조건 b 승리(-1)로
+    처리되었음. → 비정상 입력은 중립(0) 으로 처리해 의도치 않은 편향 제거.
     """
+    if tactic_a not in _VALID_TACTICS or tactic_b not in _VALID_TACTICS:
+        return 0   # 비정상 입력 → 중립
     if tactic_a == tactic_b:
         return 0
     if TACTIC_WINS.get(tactic_a) == tactic_b:

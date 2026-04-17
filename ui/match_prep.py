@@ -319,13 +319,15 @@ class MatchPrepScreen(QWidget):
 
         # 라이벌 여부
         if is_rival(my_id, opp_id):
+            # BUG-03 수정: stat_bonus는 PRD v10에서 의도적으로 제거됨(양방향 적용 시 상쇄).
+            # extra_luck(변동성 확장)만 실제 적용되므로 UI 문구를 정확히 반영.
             h2h = get_h2h_record(my_id, opp_id)
             if h2h["total"] > 0:
                 opp_name = self._opp["name"]
                 h2h_text = f"통산 {h2h['a_wins']}승 {h2h['b_wins']}패 vs {opp_name}"
-                self.lbl_rival.setText(f"🔥 라이벌 매치!  |  {h2h_text}  |  능력치 & 운 보너스 적용")
+                self.lbl_rival.setText(f"🔥 라이벌 매치!  |  {h2h_text}  |  운 변동성 보너스 적용")
             else:
-                self.lbl_rival.setText("🔥 라이벌 매치! 능력치 & 운 보너스 적용  |  첫 번째 맞대결!")
+                self.lbl_rival.setText("🔥 라이벌 매치! 운 변동성 보너스 적용  |  첫 번째 맞대결!")
         else:
             self.lbl_rival.setText("")
 
@@ -372,7 +374,19 @@ class MatchPrepScreen(QWidget):
             self.lbl_gap_warning.hide()
 
         # 맵 선택 (Super/SS 핸디캡: 최악 맵 강제 지정 → 진짜 불리한 환경)
-        self._locked_map_id = get_locked_map_id(self._my, self._maps)
+        # BUG-10 수정: 내 선수뿐 아니라 AI 상대도 Super/SS면 핸디캡 적용.
+        #   내 선수 잠금 우선 → 없으면 상대 잠금 적용.
+        my_locked  = get_locked_map_id(self._my,  self._maps)
+        opp_locked = get_locked_map_id(self._opp, self._maps)
+        self._locked_map_id = my_locked if my_locked is not None else opp_locked
+
+        # 잠금 라벨 결정
+        if my_locked is not None:
+            lock_label_text = "⚠ 핸디캡: 내 선수 최악 맵 강제 적용 (난이도 ↑)"
+        elif opp_locked is not None:
+            lock_label_text = "⚠ 핸디캡: 상대 선수 최악 맵 강제 적용"
+        else:
+            lock_label_text = ""
 
         self.cmb_map.blockSignals(True)
         self.cmb_map.clear()
@@ -392,7 +406,7 @@ class MatchPrepScreen(QWidget):
             for i in range(self.cmb_map.count()):
                 if i != locked_idx:
                     self.cmb_map.model().item(i).setEnabled(False)
-            self.lbl_locked.setText("⚠ 핸디캡: 최악 맵 강제 적용 (난이도 ↑)")
+            self.lbl_locked.setText(lock_label_text)
         else:
             self.lbl_locked.setText("")
             for i in range(self.cmb_map.count()):

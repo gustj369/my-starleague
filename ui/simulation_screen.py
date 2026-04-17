@@ -1026,12 +1026,17 @@ class SimulationScreen(QWidget):
             return
         it = items[idx]
 
+        # BUG-08 수정: 아이템 삭제는 실제 효과가 적용된 경우에만 실행.
+        # 이전 코드는 효과 조건 분기와 무관하게 항상 DELETE 가 실행되었음.
+        applied = False
+
         # 컨디션 아이템: 1단계 상승 (최상이면 효과 없음)
         if it.get("condition_up", 0):
             if self._my_condition != "최상":
                 self._my_condition = apply_condition_item(self._my_condition)
                 pa = _load_player(self._my_id)
                 self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
+                applied = True
 
         # 피로회복 아이템: 구간 점프 방식 (언제 써도 의미 있음)
         if it.get("fatigue_recover", 0):
@@ -1046,12 +1051,13 @@ class SimulationScreen(QWidget):
                 self._my_fatigue = new_fat
                 pa = _load_player(self._my_id)
                 self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
+                applied = True
 
-        with get_connection() as conn:
-            conn.execute("DELETE FROM player_items WHERE id = ?", (it["pi_id"],))
-            conn.commit()
-
-        self.btn_item.setEnabled(False)
+        if applied:
+            with get_connection() as conn:
+                conn.execute("DELETE FROM player_items WHERE id = ?", (it["pi_id"],))
+                conn.commit()
+            self.btn_item.setEnabled(False)
 
     # ── 다음 버튼 ────────────────────────────────────────────
     def _on_next(self):

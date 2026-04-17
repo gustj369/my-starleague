@@ -173,11 +173,14 @@ def _apply_loser_delta(player: dict, power_diff: float) -> Dict[str, int]:
 
     if power_diff >= 15:
         # 압도적 패배: 추가 스탯 하락
-        keys_pool = [k for k in STAT_KEYS if k != drop_key]
-        extra_key = random.choice(keys_pool)
-        delta[extra_key] = -min(1, player[extra_key] - 1)
-        # 역경에서 배움 (sense는 빠지지 않음)
-        if drop_key != "sense" and extra_key != "sense":
+        # BUG-13 수정: extra_key 풀에서 sense 제외 → extra_key == "sense" 일 때
+        # delta["sense"] 가 -1 로 세팅된 뒤 +1 보상이 스킵되어 순감소하던 버그 해소.
+        keys_pool = [k for k in STAT_KEYS if k != drop_key and k != "sense"]
+        if keys_pool:
+            extra_key = random.choice(keys_pool)
+            delta[extra_key] = -min(1, player[extra_key] - 1)
+        # 역경에서 배움: drop_key 가 sense 가 아닐 때 항상 +1
+        if drop_key != "sense":
             delta["sense"] = min(1, 100 - player["sense"])
     elif power_diff >= 8:
         # 역경에서 배움 (기존 조건 완화)
@@ -246,15 +249,18 @@ def simulate_set(
     - 후반: 피로도 +15 시뮬레이션 (체력 저하)
     - 2/3 페이즈 승리 시 세트 승리
     """
+    # BUG-11 수정: 예외 발생 시 conn.close()가 미도달하는 연결 누수 →
+    # try/finally 로 항상 연결을 닫도록 보장.
     conn = get_connection()
-    cur = conn.cursor()
-
-    pa = _get_player(cur, player_a_id)
-    pb = _get_player(cur, player_b_id)
-    mp = _get_map(cur, map_id)
-    ia = _get_item_bonuses(cur, player_a_id)
-    ib = _get_item_bonuses(cur, player_b_id)
-    conn.close()
+    try:
+        cur = conn.cursor()
+        pa = _get_player(cur, player_a_id)
+        pb = _get_player(cur, player_b_id)
+        mp = _get_map(cur, map_id)
+        ia = _get_item_bonuses(cur, player_a_id)
+        ib = _get_item_bonuses(cur, player_b_id)
+    finally:
+        conn.close()
 
     map_bonus_a = mp[RACE_BONUS_COL[pa["race"]]]
     map_bonus_b = mp[RACE_BONUS_COL[pb["race"]]]

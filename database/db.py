@@ -19,7 +19,15 @@ def set_active_slot(slot_idx: int):
 
 
 def get_db_path() -> str:
-    """현재 활성 슬롯의 DB 파일 경로 반환"""
+    """현재 활성 슬롯의 DB 파일 경로 반환.
+
+    BUG-12 수정: _ACTIVE_SLOT 기본값이 -1 이므로 set_active_slot() 호출 전에
+    get_db_path() 가 실행되면 save_-1.db 가 생성되던 버그 → 가드 추가.
+    """
+    if _ACTIVE_SLOT < 0:
+        raise RuntimeError(
+            "슬롯이 선택되지 않았습니다. set_active_slot()을 먼저 호출하세요."
+        )
     _SAVES_DIR.mkdir(parents=True, exist_ok=True)   # ← parents=True 필수 (첫 실행 시 부모 폴더 없음)
     return str(_SAVES_DIR / f"save_{_ACTIVE_SLOT}.db")
 
@@ -218,7 +226,15 @@ def set_gold(amount: int):
 
 
 def add_gold(amount: int):
-    set_gold(get_gold() + amount)
+    """BUG-14 수정: get_gold() + set_gold() 분리 시 두 트랜잭션 사이에 다른 호출이
+    끼어들 수 있는 비원자적 read-modify-write 문제 → 단일 SQL UPDATE 로 원자화.
+    """
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE game_state SET value = CAST(value AS INTEGER) + ? WHERE key='gold'",
+            (amount,)
+        )
+        conn.commit()
 
 
 def get_current_tournament_id() -> int | None:
