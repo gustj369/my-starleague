@@ -81,6 +81,24 @@ def apply_condition_item(condition: str) -> str:
     return "최상"
 
 
+def apply_fatigue_item(current_fatigue: int) -> int:
+    """피로회복 아이템: 피로도를 한 구간 아래로 점프.
+
+    언제 사용해도 의미 있도록 구간 단위로 이동.
+      81~100 (×0.80) → 60  (×0.88 구간 진입점)
+      61~80  (×0.88) → 30  (×0.95 구간 진입점)
+      31~60  (×0.95) →  0  (×1.00 최적 구간)
+       0~30  (×1.00) → 변화 없음 (이미 최적)
+    """
+    if current_fatigue > 80:
+        return 60
+    elif current_fatigue > 60:
+        return 30
+    elif current_fatigue > 30:
+        return 0
+    return current_fatigue  # 이미 최적 구간
+
+
 # ── 핸디캡 (랜덤 범위) ────────────────────────────────────────
 # 하위 등급일수록 랜덤 폭이 넓어 "운이 좋은 날" 이변 가능 (PRD v6)
 # B(±20) vs S(±10): 강한 B ~20% 이변 확률, 약한 B ~6% — 스탯 차이가 의미 있음
@@ -111,9 +129,12 @@ def calc_grade_gap_boost(underdog_grade: str, favorite_grade: str) -> tuple[int,
 
     Returns: (underdog_boost, favorite_penalty)
 
-    S vs B (2등급 차): underdog_boost=9, favorite_penalty=3
-      → B 평균 전투력 약 4.5 상승, S 약 1.5 하락 → 격차 12→6pt로 압축
-      → 세트 이변 확률 약 25~30%
+    1등급 차 (A vs B):   boost=5,  penalty=2  → 이변 ~20%
+    2등급 차 (S vs B):   boost=9,  penalty=3  → 이변 ~25%
+    3등급 차 (A vs D):   boost=14, penalty=4  → 이변 ~12%
+    4등급 차 (S vs F):   boost=20, penalty=5  → 이변 ~5%
+    5등급+ 차 (Super vs D): boost=27, penalty=6 → 이변 ~2% (기적)
+    ── 기존 3등급 상한에서 단층을 없애 등급 차에 비례한 연속 스케일 적용 ──
     """
     try:
         u_idx = GRADE_ORDER.index(underdog_grade)
@@ -128,12 +149,20 @@ def calc_grade_gap_boost(underdog_grade: str, favorite_grade: str) -> tuple[int,
         return (5, 2)    # 1등급 차: 미세 보정
     elif diff == 2:
         return (9, 3)    # 2등급 차 (S vs B): 이변 ~25%
+    elif diff == 3:
+        return (14, 4)   # 3등급 차: 이변 ~12%
+    elif diff == 4:
+        return (20, 5)   # 4등급 차: 이변 ~5%
     else:
-        return (13, 4)   # 3등급+ 차: 이변 ~35%
+        return (27, 6)   # 5등급+ 차: 기적적 이변 (~2%)
 
 
 def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
-    """SSS/SS 선수는 자신에게 가장 유리한 맵이 고정됨 (핸디캡)"""
+    """Super/SS 선수는 자신에게 가장 불리한 맵이 강제 지정됨 (진짜 핸디캡).
+
+    설계 의도: 최강 등급일수록 최악의 환경에서 경기해 난이도를 높임.
+    → 이전 구현(최고 맵 고정)이 오히려 이점이 되던 문제 수정.
+    """
     grade = player.get("grade", "C")
     if grade not in ("Super", "SS"):
         return None
@@ -148,8 +177,9 @@ def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
     if not bonus_col or not maps:
         return None
 
-    best = max(maps, key=lambda m: m.get(bonus_col, 0))
-    return best["id"]
+    # 종족 보너스가 가장 낮은 맵 → 진짜 불리한 환경
+    worst = min(maps, key=lambda m: m.get(bonus_col, 0))
+    return worst["id"]
 
 
 # ── 라이벌 ────────────────────────────────────────────────────

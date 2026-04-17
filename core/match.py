@@ -27,15 +27,17 @@ SETS_TO_WIN = {
 }
 
 # 세트 전략 페이즈 보정값
-# PRD v12:
-#   초반집중:   초반에 모든 것을 쏟아붓고 후반에 체력 소진 (초반 +12, 후반 -6)
+# PRD v13 조정:
+#   초반집중:   초반에 모든 것을 쏟아붓고 후반에 체력 소진 (초반 +9, 후반 -5)
+#              기존 +12/-6에서 완화 → Phase1+모멘텀 연쇄 과다 스택 해소
 #   균형:       안정적 운영, 변동 없음
-#   후반체력전: 초반 체력 비축 후 중반부터 힘을 발휘 (초반 -6, 중반 +3, 후반 +14)
-#   → 전략 삼각 구도: 초반집중이 균형에 강하고, 후반체력전이 초반집중에 강하고, 균형이 후반체력전에 안전
+#   후반체력전: 초반 체력 비축 후 중반부터 힘을 발휘 (초반 -5, 중반 +3, 후반 +14)
+#              기존 초반 -6→-5로 완화 → 역전 경로를 좀 더 현실적으로
+#   → 전략 삼각 구도: 초반집중>균형, 후반체력전>초반집중(역전), 균형>후반체력전(Phase1+2 선점)
 STRATEGY_PHASE_BONUS = {
-    "초반집중":   {"초반": +12, "중반":  0, "후반":  -6},
-    "균형":       {"초반":   0, "중반":  0, "후반":   0},
-    "후반체력전": {"초반":  -6, "중반": +3, "후반": +14},
+    "초반집중":   {"초반": +9, "중반":  0, "후반":  -5},
+    "균형":       {"초반":  0, "중반":  0, "후반":   0},
+    "후반체력전": {"초반": -5, "중반": +3, "후반": +14},
 }
 
 
@@ -291,10 +293,10 @@ def simulate_set(
         a_penalty += penalty
 
     # ── 다전제 역전 모멘텀 ────────────────────────────────────
-    # PRD v10: 세트 차이에 비례 (flat +5 → gap×4, 최대 +8)
+    # PRD v13: gap×4 max8 → gap×3 max6 (항상 초반집중이 최적해로 수렴하는 문제 완화)
     a_sets, b_sets = series_score
     gap = abs(b_sets - a_sets)
-    comeback = min(gap * 4, 8)
+    comeback = min(gap * 3, 6)
     if b_sets > a_sets:
         a_boost += comeback   # a가 뒤져있으면 역전 의지 부스트
     elif a_sets > b_sets:
@@ -317,9 +319,10 @@ def simulate_set(
                       underdog_boost=p1_b_boost, favorite_penalty=b_penalty)
     p1_winner = player_a_id if p1_a >= p1_b else player_b_id
 
-    # ── 페이즈 2: 중반 — 초반 모멘텀 +3 + 전략 적용 ──────────
-    p2_a_boost = a_boost + (3 if p1_winner == player_a_id else 0) + strat_bonus_a["중반"]
-    p2_b_boost = b_boost + (3 if p1_winner == player_b_id else 0) + strat_bonus_b["중반"]
+    # ── 페이즈 2: 중반 — 초반 모멘텀 +2 + 전략 적용 ──────────
+    # PRD v13: +3→+2 (전술 우위의 Phase1 승리가 Phase2까지 과도하게 전파되던 문제 완화)
+    p2_a_boost = a_boost + (2 if p1_winner == player_a_id else 0) + strat_bonus_a["중반"]
+    p2_b_boost = b_boost + (2 if p1_winner == player_b_id else 0) + strat_bonus_b["중반"]
 
     p2_a = calc_power(eff_a, a_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p2_a_boost, favorite_penalty=a_penalty)

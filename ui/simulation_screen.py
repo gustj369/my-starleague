@@ -3,7 +3,7 @@ import random as _random
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QStackedWidget, QDialog, QListWidget,
+    QFrame, QStackedWidget, QDialog, QListWidget, QListWidgetItem,
     QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
@@ -12,8 +12,8 @@ from PyQt6.QtGui import QFont
 from database.db import get_connection
 from core.match import simulate_set, finalize_match, SETS_TO_WIN, SetResult, MatchOutcome
 from core.balance import (
-    roll_condition, apply_condition_item, CONDITION_COLOR,
-    fatigue_mult, add_fatigue, GRADE_ORDER,
+    roll_condition, apply_condition_item, apply_fatigue_item,
+    CONDITION_COLOR, fatigue_mult, add_fatigue, GRADE_ORDER,
 )
 from core.commentary import get_set_commentary
 from core.builds import get_build_name, calc_build_result, BUILD_TYPES
@@ -48,12 +48,19 @@ def _load_emergency_items(player_id: int) -> list[dict]:
 
 
 class EmergencyItemDialog(QDialog):
-    """세트 패배 후 긴급 아이템 선택 다이얼로그"""
-    def __init__(self, items: list[dict], parent=None):
+    """세트 패배 후 긴급 아이템 선택 다이얼로그.
+
+    current_condition: 현재 컨디션 (최상이면 컨디션 아이템 비활성화)
+    current_fatigue:   현재 피로도 (구간 점프 효과 미리 표시)
+    """
+    def __init__(self, items: list[dict],
+                 current_condition: str = "보통",
+                 current_fatigue: int = 0,
+                 parent=None):
         super().__init__(parent)
         self.setWindowTitle("긴급 아이템 사용")
-        self.setMinimumWidth(360)
-        self._selected_item: dict | None = None
+        self.setMinimumWidth(400)
+        self._items = items
 
         lay = QVBoxLayout(self)
         lay.setSpacing(10)
@@ -65,16 +72,41 @@ class EmergencyItemDialog(QDialog):
         self.lst = QListWidget()
         self.lst.setStyleSheet("""
             QListWidget { background: #FFFFFF; border: 1px solid #E9ECEF; border-radius:4px; }
-            QListWidget::item { padding: 6px 10px; color: #212529; }
-            QListWidget::item:selected { background: #EEF2FF; color: #F59E0B; }
+            QListWidget::item { padding: 7px 12px; color: #212529; }
+            QListWidget::item:selected { background: #EEF2FF; color: #5B6CF6; }
+            QListWidget::item:disabled { color: #ADB5BD; }
         """)
-        for it in items:
+
+        first_selectable = -1
+        for idx, it in enumerate(items):
+            disabled = False
             if it.get("condition_up", 0):
-                desc = f"컨디션 한 단계 상승"
+                if current_condition == "최상":
+                    desc = "효과 없음 — 이미 최상 컨디션"
+                    disabled = True
+                elif current_condition == "보통":
+                    desc = "컨디션: 보통 → 최상 ↑"
+                else:
+                    desc = "컨디션: 저조 → 보통 ↑"
             else:
-                desc = f"피로도 -{it['fatigue_recover']}"
-            self.lst.addItem(f"{it['name']}  ({desc})")
-        self.lst.setCurrentRow(0)
+                new_fat = apply_fatigue_item(current_fatigue)
+                if new_fat == current_fatigue:
+                    desc = f"효과 없음 — 피로도 {current_fatigue} (이미 최적 구간)"
+                    disabled = True
+                else:
+                    desc = f"피로도: {current_fatigue} → {new_fat} (배율 개선)"
+
+            list_item = QListWidgetItem(f"{it['name']}  ({desc})")
+            if disabled:
+                list_item.setFlags(list_item.flags() & ~Qt.ItemFlag.ItemIsEnabled
+                                   & ~Qt.ItemFlag.ItemIsSelectable)
+            else:
+                if first_selectable < 0:
+                    first_selectable = idx
+            self.lst.addItem(list_item)
+
+        if first_selectable >= 0:
+            self.lst.setCurrentRow(first_selectable)
         lay.addWidget(self.lst)
 
         btns = QDialogButtonBox(
@@ -84,8 +116,6 @@ class EmergencyItemDialog(QDialog):
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
-
-        self._items = items
 
     def selected_index(self) -> int:
         return self.lst.currentRow()
@@ -124,6 +154,7 @@ class SimulationScreen(QWidget):
         self._my_build_history: list[str] = []
         self._pending_strategy: str = "균형"
         self._pending_ai_strategy: str = "균형"
+        self._prev_ai_strategy: str | None = None   # 직전 세트 AI 전략 (힌트용)
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -305,9 +336,9 @@ class SimulationScreen(QWidget):
         strat_row.setSpacing(8)
         self.strategy_btns: list[QPushButton] = []
         STRAT_INFO = [
-            ("초반집중",   "초반 +12\n후반 −6"),
+            ("초반집중",   "초반 +9\n후반 −5"),
             ("균형",       "균형 운영\n변동 없음"),
-            ("후반체력전", "초반 −6  중반 +3\n후반 +14"),
+            ("후반체력전", "초반 −5  중반 +3\n후반 +14"),
         ]
         for sname, sdesc in STRAT_INFO:
             btn = QPushButton(f"{sname}\n{sdesc}")
@@ -330,6 +361,13 @@ class SimulationScreen(QWidget):
         self.lbl_strategy_picked.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_strategy_picked.setStyleSheet(
             "color: #5B6CF6; font-size: 12px; background: transparent;"
+        )
+
+        # 직전 세트 AI 전략 힌트 (2세트부터 표시)
+        self.lbl_ai_hint = QLabel("")
+        self.lbl_ai_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_ai_hint.setStyleSheet(
+            "color: #ADB5BD; font-size: 11px; background: transparent; font-style: italic;"
         )
 
         sep = QFrame()
@@ -389,6 +427,7 @@ class SimulationScreen(QWidget):
         lay.addWidget(strat_title)
         lay.addLayout(strat_row)
         lay.addWidget(self.lbl_strategy_picked)
+        lay.addWidget(self.lbl_ai_hint)
         lay.addWidget(sep)
         lay.addWidget(tactic_title)
         lay.addWidget(rps_hint)
@@ -691,9 +730,21 @@ class SimulationScreen(QWidget):
                 "color: #868E96; font-size: 13px; font-weight: bold; background: transparent;"
             )
         self._pending_strategy = "균형"
-        # AI 전략 랜덤 선택 (플레이어 선택 전에 미리 결정)
+
+        # AI 전략 선택 — 직전 세트 기억 (50% 유지 / 50% 다른 전략으로 변경)
         STRATEGIES = ["초반집중", "균형", "후반체력전"]
-        self._pending_ai_strategy = _random.choice(STRATEGIES)
+        prev = self._prev_ai_strategy
+        if prev is not None and _random.random() < 0.50:
+            self._pending_ai_strategy = prev   # 50% 이전 전략 유지 → 패턴 읽기 가능
+        else:
+            others = [s for s in STRATEGIES if s != prev] if prev else STRATEGIES
+            self._pending_ai_strategy = _random.choice(others if others else STRATEGIES)
+
+        # 힌트: 직전 세트에서 AI가 사용한 전략 표시 (2세트부터)
+        if prev and len(self._all_sets) > 0:
+            self.lbl_ai_hint.setText(f"📋 직전 세트 상대 전략: 【{prev}】")
+        else:
+            self.lbl_ai_hint.setText("")
 
         # 전술 버튼 이름 업데이트 (전술 삼각체계)
         from core.builds import TACTIC_NAMES, TACTIC_DESC
@@ -861,6 +912,9 @@ class SimulationScreen(QWidget):
 
     # ── 세트 결과 표시 ───────────────────────────────────────
     def _show_set_result(self):
+        # 세트 종료 시점에 AI 전략 기록 (다음 세트 힌트용)
+        self._prev_ai_strategy = self._pending_ai_strategy
+
         result = self._pending_set_result
         pa = _load_player(self._my_id)
         pb = _load_player(self._opp_id)
@@ -939,10 +993,22 @@ class SimulationScreen(QWidget):
             self.btn_item.setEnabled(False)
         else:
             my_lost_set = (result.winner_id != self._my_id)
-            emergency_items = _load_emergency_items(self._my_id)
-            self.btn_item.setEnabled(my_lost_set and len(emergency_items) > 0)
+            # 실제 효과 있는 아이템이 있을 때만 버튼 활성화
+            self.btn_item.setEnabled(my_lost_set and self._has_useful_items())
             self.btn_next.setText(f"▶  {set_num + 1}세트 빌드 선택")
             self.btn_next.setEnabled(True)
+
+    # ── 유효 아이템 존재 여부 ────────────────────────────────
+    def _has_useful_items(self) -> bool:
+        """현재 상황에서 실제 효과 있는 긴급 아이템이 있는지 확인."""
+        items = _load_emergency_items(self._my_id)
+        for it in items:
+            if it.get("condition_up", 0) and self._my_condition != "최상":
+                return True
+            if it.get("fatigue_recover", 0):
+                if apply_fatigue_item(self._my_fatigue) != self._my_fatigue:
+                    return True
+        return False
 
     # ── 긴급 아이템 사용 ─────────────────────────────────────
     def _on_use_item(self):
@@ -950,7 +1016,8 @@ class SimulationScreen(QWidget):
         if not items:
             return
 
-        dlg = EmergencyItemDialog(items, self)
+        # 현재 컨디션·피로도 정보를 다이얼로그에 전달해 효과 미리 표시
+        dlg = EmergencyItemDialog(items, self._my_condition, self._my_fatigue, self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -959,21 +1026,26 @@ class SimulationScreen(QWidget):
             return
         it = items[idx]
 
+        # 컨디션 아이템: 1단계 상승 (최상이면 효과 없음)
         if it.get("condition_up", 0):
-            self._my_condition = apply_condition_item(self._my_condition)
-            pa = _load_player(self._my_id)
-            self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
+            if self._my_condition != "최상":
+                self._my_condition = apply_condition_item(self._my_condition)
+                pa = _load_player(self._my_id)
+                self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
 
+        # 피로회복 아이템: 구간 점프 방식 (언제 써도 의미 있음)
         if it.get("fatigue_recover", 0):
-            self._my_fatigue = max(0, self._my_fatigue - it["fatigue_recover"])
-            with get_connection() as conn:
-                conn.execute(
-                    "UPDATE players SET fatigue = MAX(0, fatigue - ?) WHERE id = ?",
-                    (it["fatigue_recover"], self._my_id)
-                )
-                conn.commit()
-            pa = _load_player(self._my_id)
-            self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
+            new_fat = apply_fatigue_item(self._my_fatigue)
+            if new_fat != self._my_fatigue:
+                with get_connection() as conn:
+                    conn.execute(
+                        "UPDATE players SET fatigue = ? WHERE id = ?",
+                        (new_fat, self._my_id)
+                    )
+                    conn.commit()
+                self._my_fatigue = new_fat
+                pa = _load_player(self._my_id)
+                self._fill_panel("a", pa, self._my_condition, self._my_fatigue)
 
         with get_connection() as conn:
             conn.execute("DELETE FROM player_items WHERE id = ?", (it["pi_id"],))

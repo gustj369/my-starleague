@@ -89,6 +89,16 @@ class MatchPrepScreen(QWidget):
             "color: #FF6B6B; font-size: 13px; font-weight: bold; background: transparent;"
         )
 
+        # 등급 차 경고 (4등급 이상)
+        self.lbl_gap_warning = QLabel("")
+        self.lbl_gap_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_gap_warning.setWordWrap(True)
+        self.lbl_gap_warning.setStyleSheet(
+            "color: #FF6B6B; font-size: 11px; background: #FFF5F5; "
+            "border: 1px solid #FF6B6B; border-radius: 4px; padding: 4px 10px;"
+        )
+        self.lbl_gap_warning.hide()
+
         # 경기 전 대사
         self.lbl_quote = QLabel("")
         self.lbl_quote.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -214,6 +224,7 @@ class MatchPrepScreen(QWidget):
         root.addWidget(make_separator())
         root.addWidget(self.lbl_round)
         root.addWidget(self.lbl_rival)
+        root.addWidget(self.lbl_gap_warning)
         root.addWidget(self.lbl_quote)
         root.addLayout(status_row)
         root.addLayout(map_row)
@@ -342,7 +353,25 @@ class MatchPrepScreen(QWidget):
             (it for it in items if it.get("condition_up", 0) > 0), None
         )
 
-        # 맵 선택 (SSS/SS 핸디캡: 최고 맵 고정)
+        # 등급 차 경고 (4등급 이상이면 전략/전술 선택이 거의 무의미함을 안내)
+        from core.balance import GRADE_ORDER
+        try:
+            my_idx  = GRADE_ORDER.index(self._my["grade"])
+            opp_idx = GRADE_ORDER.index(self._opp["grade"])
+            gap = abs(my_idx - opp_idx)
+            if gap >= 4:
+                direction = "상대가 훨씬 강합니다" if opp_idx < my_idx else "상대가 훨씬 약합니다"
+                self.lbl_gap_warning.setText(
+                    f"⚠  등급 차 {gap}단계 — {direction}. "
+                    f"이변 확률이 매우 낮아 전략·전술 선택이 결과에 거의 영향을 주지 않습니다."
+                )
+                self.lbl_gap_warning.show()
+            else:
+                self.lbl_gap_warning.hide()
+        except ValueError:
+            self.lbl_gap_warning.hide()
+
+        # 맵 선택 (Super/SS 핸디캡: 최악 맵 강제 지정 → 진짜 불리한 환경)
         self._locked_map_id = get_locked_map_id(self._my, self._maps)
 
         self.cmb_map.blockSignals(True)
@@ -363,7 +392,7 @@ class MatchPrepScreen(QWidget):
             for i in range(self.cmb_map.count()):
                 if i != locked_idx:
                     self.cmb_map.model().item(i).setEnabled(False)
-            self.lbl_locked.setText("⚠ 핸디캡: 최적 맵 강제 선택")
+            self.lbl_locked.setText("⚠ 핸디캡: 최악 맵 강제 적용 (난이도 ↑)")
         else:
             self.lbl_locked.setText("")
             for i in range(self.cmb_map.count()):
