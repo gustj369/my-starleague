@@ -27,11 +27,15 @@ SETS_TO_WIN = {
 }
 
 # 세트 전략 페이즈 보정값
-# PRD v10: +20/-10 → +12/-6 (BUILD_ADVANTAGE_BOOST와 중복 시 스탯 차이를 압도하던 문제 해소)
+# PRD v12:
+#   초반집중:   초반에 모든 것을 쏟아붓고 후반에 체력 소진 (초반 +12, 후반 -6)
+#   균형:       안정적 운영, 변동 없음
+#   후반체력전: 초반 체력 비축 후 중반부터 힘을 발휘 (초반 -6, 중반 +3, 후반 +14)
+#   → 전략 삼각 구도: 초반집중이 균형에 강하고, 후반체력전이 초반집중에 강하고, 균형이 후반체력전에 안전
 STRATEGY_PHASE_BONUS = {
-    "초반집중":   {"초반": +12, "중반":  0, "후반": -6},
-    "균형":       {"초반":   0, "중반":  0, "후반":  0},
-    "후반체력전": {"초반":  -6, "중반":  0, "후반": +12},
+    "초반집중":   {"초반": +12, "중반":  0, "후반":  -6},
+    "균형":       {"초반":   0, "중반":  0, "후반":   0},
+    "후반체력전": {"초반":  -6, "중반": +3, "후반": +14},
 }
 
 
@@ -113,16 +117,43 @@ def _get_item_bonuses(cur, player_id: int) -> Dict[str, int]:
     return bonuses
 
 
+# ── OVR 기반 성장 감쇄 ────────────────────────────────────────
+def _growth_factor(overall: float) -> float:
+    """고OVR일수록 성장이 둔해지는 감쇄 계수.
+    Super(95+): 0.4배 / SS(90+): 0.6배 / S(85+): 0.8배 / 그 외: 1.0배
+    """
+    if overall >= 95:
+        return 0.4
+    elif overall >= 90:
+        return 0.6
+    elif overall >= 85:
+        return 0.8
+    return 1.0
+
+
+def _scale_delta(raw: int, factor: float) -> int:
+    """소수 감쇄 시 확률적 반올림 (0.7 → 70% 확률로 1, 30% 확률로 0)"""
+    val = raw * factor
+    base = int(val)
+    frac = val - base
+    return base + (1 if random.random() < frac else 0)
+
+
 # ── 스탯 변동 ─────────────────────────────────────────────────
-def _apply_winner_delta(upset_bonus: Dict[str, int] | None = None) -> Dict[str, int]:
+def _apply_winner_delta(player: dict, upset_bonus: Dict[str, int] | None = None) -> Dict[str, int]:
+    """승자 스탯 변동. OVR 기반 성장 감쇄 적용."""
+    overall = player.get("overall", 50.0)
+    factor  = _growth_factor(overall)
+
     num_boost = random.randint(1, 2)
     keys = random.sample(STAT_KEYS, num_boost)
     delta = {k: 0 for k in STAT_KEYS}
     for k in keys:
-        delta[k] = random.randint(1, 3)
+        delta[k] = _scale_delta(random.randint(1, 3), factor)
     if upset_bonus:
         for k in STAT_KEYS:
-            delta[k] = delta.get(k, 0) + upset_bonus.get(k, 0)
+            bonus = _scale_delta(upset_bonus.get(k, 0), factor)
+            delta[k] = delta.get(k, 0) + bonus
     return delta
 
 
@@ -203,6 +234,7 @@ def simulate_set(
     build_a: str = "바위",
     build_b: str = "바위",
     strategy_a: str = "균형",
+    strategy_b: str = "균형",   # AI/상대방 전략 (PRD v12: 양방향 적용)
 ) -> SetResult:
     """단일 세트 결과 반환. DB에 쓰지 않는다.
 
@@ -271,12 +303,13 @@ def simulate_set(
     # ── 빌드 결과 ─────────────────────────────────────────────
     br = calc_build_result(build_a, build_b)
 
-    # ── 전략 보정값 가져오기 ──────────────────────────────────
-    strat_bonus = STRATEGY_PHASE_BONUS.get(strategy_a, STRATEGY_PHASE_BONUS["균형"])
+    # ── 전략 보정값 가져오기 (양방향 적용, PRD v12) ──────────
+    strat_bonus_a = STRATEGY_PHASE_BONUS.get(strategy_a, STRATEGY_PHASE_BONUS["균형"])
+    strat_bonus_b = STRATEGY_PHASE_BONUS.get(strategy_b, STRATEGY_PHASE_BONUS["균형"])
 
     # ── 페이즈 1: 초반 — 빌드 우위 + 전략 적용 ───────────────
-    p1_a_boost = a_boost + (BUILD_ADVANTAGE_BOOST if br > 0 else 0) + strat_bonus["초반"]
-    p1_b_boost = b_boost + (BUILD_ADVANTAGE_BOOST if br < 0 else 0)
+    p1_a_boost = a_boost + (BUILD_ADVANTAGE_BOOST if br > 0 else 0) + strat_bonus_a["초반"]
+    p1_b_boost = b_boost + (BUILD_ADVANTAGE_BOOST if br < 0 else 0) + strat_bonus_b["초반"]
 
     p1_a = calc_power(eff_a, a_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p1_a_boost, favorite_penalty=a_penalty)
@@ -285,8 +318,8 @@ def simulate_set(
     p1_winner = player_a_id if p1_a >= p1_b else player_b_id
 
     # ── 페이즈 2: 중반 — 초반 모멘텀 +3 + 전략 적용 ──────────
-    p2_a_boost = a_boost + (3 if p1_winner == player_a_id else 0) + strat_bonus["중반"]
-    p2_b_boost = b_boost + (3 if p1_winner == player_b_id else 0)
+    p2_a_boost = a_boost + (3 if p1_winner == player_a_id else 0) + strat_bonus_a["중반"]
+    p2_b_boost = b_boost + (3 if p1_winner == player_b_id else 0) + strat_bonus_b["중반"]
 
     p2_a = calc_power(eff_a, a_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p2_a_boost, favorite_penalty=a_penalty)
@@ -301,9 +334,9 @@ def simulate_set(
                                 fatigue_val=min(100, b_fat + 15))
 
     p3_a = calc_power(eff_a_late, a_grade, extra_luck_range=extra_luck_range,
-                      underdog_boost=a_boost + strat_bonus["후반"], favorite_penalty=a_penalty)
+                      underdog_boost=a_boost + strat_bonus_a["후반"], favorite_penalty=a_penalty)
     p3_b = calc_power(eff_b_late, b_grade, extra_luck_range=extra_luck_range,
-                      underdog_boost=b_boost, favorite_penalty=b_penalty)
+                      underdog_boost=b_boost + strat_bonus_b["후반"], favorite_penalty=b_penalty)
     p3_winner = player_a_id if p3_a >= p3_b else player_b_id
 
     # ── 세트 승자: 2/3 페이즈 승리 ───────────────────────────
@@ -371,10 +404,10 @@ def finalize_match(
     upset_gold, upset_stat_bonus = calc_upset_rewards(upset_level) if is_upset else (0, {})
 
     if winner_id == player_a_id:
-        a_delta = _apply_winner_delta(upset_stat_bonus if is_upset else None)
+        a_delta = _apply_winner_delta(winner, upset_stat_bonus if is_upset else None)
         b_delta = _apply_loser_delta(pb, power_diff)
     else:
-        b_delta = _apply_winner_delta(upset_stat_bonus if is_upset else None)
+        b_delta = _apply_winner_delta(winner, upset_stat_bonus if is_upset else None)
         a_delta = _apply_loser_delta(pa, power_diff)
 
     _update_player_stats(cur, pa, a_delta)
@@ -439,9 +472,12 @@ def simulate_series(
     b_wins = 0
     set_num = 1
 
+    STRATEGIES = ["초반집중", "균형", "후반체력전"]
     while a_wins < sets_to_win and b_wins < sets_to_win:
-        ai_build_a = _random.choice(BUILD_TYPES)
-        ai_build_b = _random.choice(BUILD_TYPES)
+        ai_build_a    = _random.choice(BUILD_TYPES)
+        ai_build_b    = _random.choice(BUILD_TYPES)
+        ai_strategy_a = _random.choice(STRATEGIES)
+        ai_strategy_b = _random.choice(STRATEGIES)
         s = simulate_set(
             player_a_id, player_b_id, map_id,
             a_condition, b_condition,
@@ -449,6 +485,8 @@ def simulate_series(
             series_score=(a_wins, b_wins),
             build_a=ai_build_a,
             build_b=ai_build_b,
+            strategy_a=ai_strategy_a,
+            strategy_b=ai_strategy_b,
         )
         sets.append(s)
         if s.winner_id == player_a_id:

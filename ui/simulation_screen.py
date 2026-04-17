@@ -123,6 +123,7 @@ class SimulationScreen(QWidget):
         self._pending_set_result: SetResult | None = None
         self._my_build_history: list[str] = []
         self._pending_strategy: str = "균형"
+        self._pending_ai_strategy: str = "균형"
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -304,9 +305,9 @@ class SimulationScreen(QWidget):
         strat_row.setSpacing(8)
         self.strategy_btns: list[QPushButton] = []
         STRAT_INFO = [
-            ("초반집중", "초반 +20\n후반 −10"),
-            ("균형",     "균형 운영\n변동 없음"),
-            ("후반체력전", "초반 −10\n후반 +20"),
+            ("초반집중",   "초반 +12\n후반 −6"),
+            ("균형",       "균형 운영\n변동 없음"),
+            ("후반체력전", "초반 −6  중반 +3\n후반 +14"),
         ]
         for sname, sdesc in STRAT_INFO:
             btn = QPushButton(f"{sname}\n{sdesc}")
@@ -690,6 +691,9 @@ class SimulationScreen(QWidget):
                 "color: #868E96; font-size: 13px; font-weight: bold; background: transparent;"
             )
         self._pending_strategy = "균형"
+        # AI 전략 랜덤 선택 (플레이어 선택 전에 미리 결정)
+        STRATEGIES = ["초반집중", "균형", "후반체력전"]
+        self._pending_ai_strategy = _random.choice(STRATEGIES)
 
         # 전술 버튼 이름 업데이트 (전술 삼각체계)
         from core.builds import TACTIC_NAMES, TACTIC_DESC
@@ -814,6 +818,7 @@ class SimulationScreen(QWidget):
             build_a=self._pending_my_build,
             build_b=self._pending_ai_build,
             strategy_a=self._pending_strategy,
+            strategy_b=self._pending_ai_strategy,
         )
         self._all_sets.append(result)
 
@@ -904,15 +909,27 @@ class SimulationScreen(QWidget):
         winner_slot = "a" if result.winner_id == self._my_id else "b"
         self._set_panel_glow(winner_slot)
 
+        # AI 전략 공개 + 상성 뱃지
+        _strat_counter = {"초반집중": "후반체력전", "후반체력전": "초반집중", "균형": "균형"}
+        _ai_strat = self._pending_ai_strategy
+        _my_strat = self._pending_strategy
+        _counter_of_ai = _strat_counter.get(_ai_strat, "균형")
+        _strat_badge = ""
+        if _my_strat == _counter_of_ai and _my_strat != "균형":
+            _strat_badge = "  ◀ 전략 상성 우위!"
+        elif _ai_strat == _strat_counter.get(_my_strat, "균형") and _ai_strat != "균형":
+            _strat_badge = "  ▶ 전략 상성 열세..."
+        _strat_reveal = f"상대 전략: {_ai_strat}{_strat_badge}"
+
         # 페이즈 결과 표시
         if result.phases:
             parts = []
             for ph in result.phases:
                 ph_winner_name = pa.get("name") if ph.winner_id == self._my_id else pb.get("name")
                 parts.append(f"【{ph.phase_name}】{ph_winner_name} ✓")
-            self.lbl_phase_scores.setText("  |  ".join(parts))
+            self.lbl_phase_scores.setText(_strat_reveal + "    " + "  |  ".join(parts))
         else:
-            self.lbl_phase_scores.setText("")
+            self.lbl_phase_scores.setText(_strat_reveal)
 
         # 승부 결정 여부
         if self._a_wins >= self._sets_to_win or self._b_wins >= self._sets_to_win:

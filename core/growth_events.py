@@ -3,6 +3,19 @@ import random
 from database.db import get_connection
 from core.grade import calc_overall, calc_grade
 
+
+def _growth_max_delta(overall: float, cfg_max: int) -> int:
+    """OVR 기반 성장 상한 감쇄.
+    Super(95+): 최대 1 / SS(90+): 최대 2 / S(85+): 최대 cfg_max-1 / 그 외: cfg_max
+    """
+    if overall >= 95:
+        return min(1, cfg_max)
+    elif overall >= 90:
+        return min(2, cfg_max)
+    elif overall >= 85:
+        return min(max(cfg_max - 1, 1), cfg_max)
+    return cfg_max
+
 STAT_KEYS = ["control", "attack", "defense", "supply", "strategy", "sense"]
 STAT_LABELS = {
     "control":  "컨트롤",
@@ -54,10 +67,15 @@ def generate_growth_event(player_id: int, achievement: str) -> list[dict]:
     sorted_stats = sorted(STAT_KEYS, key=lambda k: player[k])
     pool = sorted_stats[:4]
 
+    # OVR 기반 성장 상한 감쇄 적용
+    overall     = player.get("overall", 50.0)
+    capped_max  = _growth_max_delta(overall, cfg["max_delta"])
+    actual_min  = min(cfg["min_delta"], capped_max)
+
     selected = random.sample(pool, min(cfg["count"], len(pool)))
     events: list[dict] = []
     for stat in selected:
-        delta = random.randint(cfg["min_delta"], cfg["max_delta"])
+        delta = random.randint(actual_min, capped_max)
         if delta > 0:
             events.append({
                 "stat":       stat,
