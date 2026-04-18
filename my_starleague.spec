@@ -43,7 +43,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='StarLeague',
+    name='LegendLeague',
     debug=False,
     strip=False,
     upx=False,
