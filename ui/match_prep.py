@@ -256,14 +256,14 @@ class MatchPrepScreen(QWidget):
             " font-weight: bold; font-size: 12px; background: transparent;"
         )
 
-        # 이미지 아바타
+        # 이미지 아바타 — 120×120 둥근 사각형 (원형 대비 캐릭터가 더 많이 보여 몰입감 ↑)
         avatar_placeholder = QLabel("?")
         avatar_placeholder.setObjectName(f"avatar_{slot}")
-        avatar_placeholder.setFixedSize(80, 80)
+        avatar_placeholder.setFixedSize(120, 120)
         avatar_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar_placeholder.setStyleSheet(
-            "background: #EEF2FF; color: #5B6CF6; font-size: 24px; "
-            "font-weight: bold; border-radius: 40px; border: 2px solid #C5D0E8;"
+            "background: #EEF2FF; color: #5B6CF6; font-size: 32px; "
+            "font-weight: bold; border-radius: 12px; border: 2px solid #C5D0E8;"
         )
         avatar_row = QHBoxLayout()
         avatar_row.addStretch()
@@ -521,19 +521,19 @@ class MatchPrepScreen(QWidget):
             img_path = get_player_image_path(player["name"])
             if img_path:
                 px = QPixmap(img_path).scaled(
-                    80, 80,
+                    120, 120,
                     _Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                     _Qt.TransformationMode.SmoothTransformation,
                 )
                 avatar_lbl.setPixmap(px)
                 avatar_lbl.setStyleSheet(
-                    "border-radius: 40px; background: #FFFFFF; border: 2px solid #E9ECEF;"
+                    "border-radius: 12px; background: #FFFFFF; border: 2px solid #C5D0E8;"
                 )
             else:
                 avatar_lbl.setText(player["name"][0])
                 avatar_lbl.setStyleSheet(
-                    "background: #EEF2FF; color: #5B6CF6; font-size: 24px; "
-                    "font-weight: bold; border-radius: 40px; border: 2px solid #C5D0E8;"
+                    "background: #EEF2FF; color: #5B6CF6; font-size: 32px; "
+                    "font-weight: bold; border-radius: 12px; border: 2px solid #C5D0E8;"
                 )
 
         frame.findChild(QLabel, f"name_{slot}").setText(player["name"])

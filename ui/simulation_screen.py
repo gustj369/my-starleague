@@ -275,14 +275,14 @@ class SimulationScreen(QWidget):
         tag = QLabel("내 선수" if slot == "a" else "상대")
         tag.setStyleSheet(f"color:{tag_color}; font-size:11px; font-weight:bold; background:transparent;")
 
-        # 선수 이미지 아바타
+        # 선수 이미지 아바타 — 96×96 둥근 사각형 (원형 대비 캐릭터가 더 잘 보여 몰입감 ↑)
         avatar = QLabel("?")
         avatar.setObjectName(f"avatar_{slot}")
-        avatar.setFixedSize(64, 64)
+        avatar.setFixedSize(96, 96)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet(
-            "background: #EEF2FF; color: #5B6CF6; font-size: 20px; "
-            "font-weight: bold; border-radius: 32px; border: 2px solid #C5D0E8;"
+            "background: #EEF2FF; color: #5B6CF6; font-size: 28px; "
+            "font-weight: bold; border-radius: 12px; border: 2px solid #C5D0E8;"
         )
         avatar_row = QHBoxLayout()
         avatar_row.addStretch()
@@ -591,13 +591,13 @@ class SimulationScreen(QWidget):
             img_path = get_player_image_path(player.get("name", ""))
             if img_path:
                 px = QPixmap(img_path).scaled(
-                    64, 64,
+                    96, 96,
                     Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                     Qt.TransformationMode.SmoothTransformation,
                 )
                 avatar_lbl.setPixmap(px)
                 avatar_lbl.setStyleSheet(
-                    "border-radius: 32px; background: #FFFFFF; border: 2px solid #E9ECEF;"
+                    "border-radius: 12px; background: #FFFFFF; border: 2px solid #C5D0E8;"
                 )
             else:
                 race = player.get("race", "")
@@ -605,8 +605,8 @@ class SimulationScreen(QWidget):
                 color  = RACE_COLORS.get(race, "#5B6CF6")
                 avatar_lbl.setText(symbol)
                 avatar_lbl.setStyleSheet(
-                    f"background: {color}1A; color: {color}; font-size: 24px; "
-                    f"font-weight: bold; border-radius: 32px; border: 2px solid {color}99;"
+                    f"background: {color}1A; color: {color}; font-size: 28px; "
+                    f"font-weight: bold; border-radius: 12px; border: 2px solid {color}99;"
                 )
 
         panel.findChild(QLabel, f"name_{slot}").setText(player.get("name", "?"))
