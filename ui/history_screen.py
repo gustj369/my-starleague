@@ -121,7 +121,10 @@ class HistoryScreen(QWidget):
         detail_lay.addWidget(self.lbl_detail_a, 1)
         detail_lay.addWidget(self.lbl_detail_b, 1)
 
-        self.hist_table.currentRowChanged.connect(self._on_history_row_changed)
+        # currentCellChanged: (currentRow, currentColumn, previousRow, previousColumn)
+        self.hist_table.currentCellChanged.connect(
+            lambda curr_row, _cc, _pr, _pc: self._on_history_row_changed(curr_row)
+        )
 
         hist_lay.addWidget(hist_title)
         hist_lay.addWidget(self.hist_table)
