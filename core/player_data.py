@@ -3,6 +3,7 @@ import random
 
 PLAYER_DATA = {
     "세라온": {
+        "ai_style": "수비형",
         "style": "운영형 · 역전의 제왕",
         "pre_match": [
             "...(천천히 고개를 든다)",
@@ -20,6 +21,7 @@ PLAYER_DATA = {
         "rival_quote": "드레이븐... 오늘 매듭을 짓겠다.",
     },
     "루엔": {
+        "ai_style": "공격형",
         "style": "공격형 · 스노우볼의 달인",
         "pre_match": [
             "이 정도 상대라면... 적당히 해주지.",
@@ -37,6 +39,7 @@ PLAYER_DATA = {
         "rival_quote": "하린인가. 오늘은 확실히 눌러주겠어.",
     },
     "카이렌": {
+        "ai_style": "공격형",
         "style": "강제교전형 · 감정 폭발",
         "pre_match": [
             "불 지르자!",
@@ -54,6 +57,7 @@ PLAYER_DATA = {
         "rival_quote": "오린! 오늘은 니가 당한다!",
     },
     "벨리아": {
+        "ai_style": "균형형",
         "style": "정석 운영형 · 베테랑의 품격",
         "pre_match": [
             "흐트러짐 없이.",
@@ -71,6 +75,7 @@ PLAYER_DATA = {
         "rival_quote": "세린... 오늘만큼은 양보 못 해요.",
     },
     "오린": {
+        "ai_style": "공격형",
         "style": "정면돌파형 · 힘 하나로 승부",
         "pre_match": [
             "그냥 박겠다.",
@@ -88,6 +93,7 @@ PLAYER_DATA = {
         "rival_quote": "카이렌, 소란 피우지 말고 맞아라.",
     },
     "나이엘": {
+        "ai_style": "공격형",
         "style": "기동형 · 결정적 순간의 존재",
         "pre_match": [
             "빠르게 끝낸다.",
@@ -105,6 +111,7 @@ PLAYER_DATA = {
         "rival_quote": "티렌... 오늘은 그 자유로움을 막아보겠어.",
     },
     "루카스": {
+        "ai_style": "균형형",
         "style": "지휘형 · 설계로 이기는 전략가",
         "pre_match": [
             "이미 경우의 수는 계산했다.",
@@ -122,6 +129,7 @@ PLAYER_DATA = {
         "rival_quote": "벨리아... 정석 대 정석, 오늘은 내가 앞서겠습니다.",
     },
     "에리나": {
+        "ai_style": "공격형",
         "style": "기습형 · 예측 불가의 변수 창출",
         "pre_match": [
             "어머, 오늘 즐거울 것 같은데?",
@@ -139,6 +147,7 @@ PLAYER_DATA = {
         "rival_quote": "루엔, 오늘은 내 판에서 놀아요.",
     },
     "드레이븐": {
+        "ai_style": "공격형",
         "style": "하이라이트형 · 스타성의 독식",
         "pre_match": [
             "이 경기는 내가 주인공이야.",
@@ -156,6 +165,7 @@ PLAYER_DATA = {
         "rival_quote": "세라온, 이번만큼은 역전 못 해. 내가 처음부터 끝낸다.",
     },
     "아셀": {
+        "ai_style": "수비형",
         "style": "장기전형 · 꾸준함의 반란",
         "pre_match": [
             "서두르지 않겠습니다.",
@@ -173,6 +183,7 @@ PLAYER_DATA = {
         "rival_quote": "벨리아... 오늘은 제가 더 멀리 내다보겠습니다.",
     },
     "티렌": {
+        "ai_style": "균형형",
         "style": "즉흥형 · 감각으로 흘러가는 속도전",
         "pre_match": [
             "오늘 컨디션 완전 좋은데? 기대해!",
@@ -190,6 +201,7 @@ PLAYER_DATA = {
         "rival_quote": "나이엘! 오늘은 내 리듬에 맞춰봐.",
     },
     "하린": {
+        "ai_style": "수비형",
         "style": "카운터형 · 냉정한 역습의 날",
         "pre_match": [
             "흔들리지 않는다.",
@@ -207,6 +219,7 @@ PLAYER_DATA = {
         "rival_quote": "루엔... 화려함 뒤의 허점을 보여드리죠.",
     },
     "모르칸": {
+        "ai_style": "공격형",
         "style": "파괴형 · 몸으로 분위기를 바꾸는 자",
         "pre_match": [
             "박으러 간다.",
@@ -224,6 +237,7 @@ PLAYER_DATA = {
         "rival_quote": "카이렌, 너 시끄럽게 달려드는 거 오늘 막아주마.",
     },
     "세린": {
+        "ai_style": "균형형",
         "style": "서포트형 · 팀의 감정적 버팀목",
         "pre_match": [
             "최선을 다해볼게요!",
@@ -241,6 +255,7 @@ PLAYER_DATA = {
         "rival_quote": "에리나... 오늘은 당신의 트릭에 흔들리지 않을게요.",
     },
     "카엘": {
+        "ai_style": "공격형",
         "style": "돌격형 · 성장 중인 기대주",
         "pre_match": [
             "빠르게 치고 빠진다!",
@@ -258,6 +273,7 @@ PLAYER_DATA = {
         "rival_quote": "티렌 선배! 오늘은 제가 이겨볼게요!",
     },
     "비올렌": {
+        "ai_style": "수비형",
         "style": "함정형 · 리그의 미스터리",
         "pre_match": [
             "당신이 함정에 빠지는 걸 구경하는 게 취미예요.",
@@ -304,3 +320,8 @@ def get_loss_quote(player_name: str) -> str:
 
 def get_style(player_name: str) -> str:
     return PLAYER_DATA.get(player_name, {}).get("style", "")
+
+
+def get_ai_style(player_name: str) -> str:
+    """AI 선수의 전략 성향 반환: '공격형' / '수비형' / '균형형'"""
+    return PLAYER_DATA.get(player_name, {}).get("ai_style", "균형형")

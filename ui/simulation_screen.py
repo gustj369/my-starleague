@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 
-from database.db import get_connection
+from database.db import get_connection, get_setting
 from core.match import simulate_set, finalize_match, SETS_TO_WIN, SetResult, MatchOutcome
 from core.balance import (
     roll_condition, apply_condition_item, apply_fatigue_item,
@@ -19,11 +19,18 @@ from core.commentary import get_set_commentary
 from core.builds import get_build_name, calc_build_result, BUILD_TYPES
 from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_SYMBOL
 from ui.widgets import make_separator, get_player_image_path
-from core.player_data import PLAYER_DATA
+from core.player_data import PLAYER_DATA, get_ai_style
 
-COMMENTARY_DELAY_MS = 900    # 중계 한 줄 표시 간격
 SET_RESULT_DELAY_MS = 500    # 세트 결과 표시까지 딜레이
 BUILD_REVEAL_DELAY_MS = 1400  # 빌드 선택 후 시뮬레이션 진행까지 대기
+
+# 속도 설정값 → 딜레이 ms 매핑
+_SPEED_MAP = {"slow": 1500, "normal": 900, "fast": 400, "instant": 0}
+
+
+def _get_commentary_delay() -> int:
+    val = get_setting("commentary_speed", "normal")
+    return _SPEED_MAP.get(val, 900)
 
 
 def _load_player(pid: int) -> dict:
@@ -453,6 +460,23 @@ class SimulationScreen(QWidget):
         cf_lay.addWidget(self.lbl_c2)
         cf_lay.addWidget(self.lbl_c3)
 
+        # 중계 스킵 버튼
+        skip_row = QHBoxLayout()
+        skip_row.addStretch()
+        self.btn_skip = QPushButton("⏩ 중계 스킵")
+        self.btn_skip.setFixedHeight(28)
+        self.btn_skip.setStyleSheet("""
+            QPushButton {
+                background: transparent; color: #ADB5BD;
+                border: 1px solid #DEE2E6; border-radius: 6px;
+                font-size: 11px; padding: 0 12px;
+            }
+            QPushButton:hover { color: #5B6CF6; border-color: #5B6CF6; background: #EEF2FF; }
+        """)
+        self.btn_skip.clicked.connect(self._skip_commentary)
+        skip_row.addWidget(self.btn_skip)
+        cf_lay.addLayout(skip_row)
+
         return frame
 
     def _make_rival_intro_frame(self) -> QFrame:
@@ -739,20 +763,35 @@ class SimulationScreen(QWidget):
             )
         self._pending_strategy = "균형"
 
-        # AI 전략 선택 — 직전 세트 기억 (50% 유지 / 50% 다른 전략으로 변경)
+        # AI 전략 선택 — 성격 성향 + 직전 세트 기억
         STRATEGIES = ["초반집중", "균형", "후반체력전"]
         prev = self._prev_ai_strategy
+
+        # AI 성향 로드
+        pb = _load_player(self._opp_id)
+        opp_name = pb.get("name", "")
+        ai_personality = get_ai_style(opp_name)  # 공격형/수비형/균형형
+
+        if ai_personality == "공격형":
+            _weights = [0.60, 0.30, 0.10]   # 초반집중 선호
+        elif ai_personality == "수비형":
+            _weights = [0.10, 0.30, 0.60]   # 후반체력전 선호
+        else:
+            _weights = [0.33, 0.34, 0.33]   # 균형
+
         if prev is not None and _random.random() < 0.50:
             self._pending_ai_strategy = prev   # 50% 이전 전략 유지 → 패턴 읽기 가능
         else:
-            others = [s for s in STRATEGIES if s != prev] if prev else STRATEGIES
-            self._pending_ai_strategy = _random.choice(others if others else STRATEGIES)
+            # 성향 가중치 기반 선택
+            self._pending_ai_strategy = _random.choices(STRATEGIES, weights=_weights)[0]
 
-        # 힌트: 직전 세트에서 AI가 사용한 전략 표시 (2세트부터)
+        # 힌트: 직전 세트 전략 + 상대 성향
         if prev and len(self._all_sets) > 0:
-            self.lbl_ai_hint.setText(f"📋 직전 세트 상대 전략: 【{prev}】")
+            self.lbl_ai_hint.setText(
+                f"📋 직전 세트 상대 전략: 【{prev}】   |   성향: {ai_personality}"
+            )
         else:
-            self.lbl_ai_hint.setText("")
+            self.lbl_ai_hint.setText(f"🎮 상대 성향: {ai_personality}")
 
         # 전술 버튼 이름 업데이트 (전술 삼각체계)
         from core.builds import TACTIC_NAMES, TACTIC_DESC
@@ -900,12 +939,20 @@ class SimulationScreen(QWidget):
         self._comment_idx = 0
         self._pending_set_result = result
 
-        # 타이머로 순차 표시
+        # 타이머로 순차 표시 (설정된 속도 적용)
+        delay = _get_commentary_delay()
         if self._timer:
             self._timer.stop()
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._show_next_commentary)
-        self._timer.start(COMMENTARY_DELAY_MS)
+        if delay == 0:
+            # 즉시 모드: 바로 전부 표시
+            for i, line in enumerate(self._commentary_queue):
+                if i < len(self._comment_labels):
+                    self._comment_labels[i].setText(f"▸ {line}")
+            QTimer.singleShot(SET_RESULT_DELAY_MS, self._show_set_result)
+        else:
+            self._timer = QTimer(self)
+            self._timer.timeout.connect(self._show_next_commentary)
+            self._timer.start(delay)
 
     # ── 중계 순차 표시 ───────────────────────────────────────
     def _show_next_commentary(self):
@@ -917,6 +964,19 @@ class SimulationScreen(QWidget):
         else:
             self._timer.stop()
             QTimer.singleShot(SET_RESULT_DELAY_MS, self._show_set_result)
+
+    # ── 중계 스킵 ────────────────────────────────────────────
+    def _skip_commentary(self):
+        """중계 타이머를 멈추고 남은 중계를 즉시 표시 후 세트 결과로 이동."""
+        if self._timer and self._timer.isActive():
+            self._timer.stop()
+        # 남은 중계 전부 표시
+        for i in range(len(self._commentary_queue)):
+            if i < len(self._comment_labels):
+                self._comment_labels[i].setText(
+                    f"▸ {self._commentary_queue[i]}"
+                )
+        QTimer.singleShot(200, self._show_set_result)
 
     # ── 세트 결과 표시 ───────────────────────────────────────
     def _show_set_result(self):

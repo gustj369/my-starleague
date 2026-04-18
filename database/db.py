@@ -211,6 +211,36 @@ def migrate_db():
     except Exception:
         pass
 
+    # achievements 테이블 (신규 슬롯 or 기존 슬롯 모두)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS achievements (
+            key       TEXT PRIMARY KEY,
+            name      TEXT NOT NULL,
+            desc      TEXT NOT NULL,
+            icon      TEXT NOT NULL DEFAULT '🏆',
+            earned    INTEGER NOT NULL DEFAULT 0,
+            earned_at TEXT
+        )
+    """)
+    # ACHIEVEMENT_DEFS는 이 시점에서 아직 정의되지 않았으므로 함수 import 패턴 사용
+    for key, name, desc, icon in [
+        ("first_win",       "첫 우승",         "첫 번째 토너먼트에서 우승하다",            "🏆"),
+        ("veteran_5",       "베테랑",          "토너먼트 5회 이상 참가",                   "🎖"),
+        ("veteran_10",      "레전드",          "토너먼트 10회 이상 참가",                  "👑"),
+        ("upset_champion",  "이변의 전설",     "이변이 발생한 경기를 포함하여 우승",        "⚡"),
+        ("rival_slayer",    "라이벌 격파왕",   "라이벌전 누적 5회 이상 승리",              "🔥"),
+        ("gold_3000",       "황금 상인",       "보유 골드 3,000 G 달성",                   "💰"),
+        ("underdog_hero",   "언더독 영웅",     "B등급 이하 선수로 우승",                   "🌟"),
+        ("perfect_final",   "완벽한 결승",     "결승전 세트스코어 2-0 또는 3-0으로 우승",  "✨"),
+        ("triple_crown",    "3관왕",           "누적 3회 이상 우승",                       "🎯"),
+        ("consecutive_2",   "연속 우승",       "2회 연속 우승 달성",                       "🔗"),
+        ("gold_master",     "골드 마스터",     "보유 골드 5,000 G 달성",                   "💎"),
+    ]:
+        cur.execute(
+            "INSERT OR IGNORE INTO achievements (key, name, desc, icon, earned) VALUES (?,?,?,?,0)",
+            (key, name, desc, icon)
+        )
+
     conn.commit()
     conn.close()
 
@@ -283,6 +313,243 @@ def get_game_summary() -> dict:
         "last_achievement": data.get("last_achievement", ""),
         "best_achievement": data.get("best_achievement", ""),
     }
+
+
+# ── 설정 함수 (game_state에 setting_ 접두어로 저장) ──────────
+def get_setting(key: str, default: str = "") -> str:
+    """설정값 조회. 슬롯 미선택 시 기본값 반환."""
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT value FROM game_state WHERE key=?", (f"setting_{key}",)
+            ).fetchone()
+            return row["value"] if row else default
+    except Exception:
+        return default
+
+
+def set_setting(key: str, value: str):
+    """설정값 저장."""
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO game_state (key, value) VALUES (?, ?)",
+            (f"setting_{key}", value)
+        )
+        conn.commit()
+
+
+# ── 도전과제 정의 ───────────────────────────────────────────
+ACHIEVEMENT_DEFS: list[tuple] = [
+    # (key, name, desc, icon)
+    ("first_win",       "첫 우승",         "첫 번째 토너먼트에서 우승하다",            "🏆"),
+    ("veteran_5",       "베테랑",          "토너먼트 5회 이상 참가",                   "🎖"),
+    ("veteran_10",      "레전드",          "토너먼트 10회 이상 참가",                  "👑"),
+    ("upset_champion",  "이변의 전설",     "이변이 발생한 경기를 포함하여 우승",        "⚡"),
+    ("rival_slayer",    "라이벌 격파왕",   "라이벌전 누적 5회 이상 승리",              "🔥"),
+    ("gold_3000",       "황금 상인",       "보유 골드 3,000 G 달성",                   "💰"),
+    ("underdog_hero",   "언더독 영웅",     "B등급 이하 선수로 우승",                   "🌟"),
+    ("perfect_final",   "완벽한 결승",     "결승전 세트스코어 2-0 또는 3-0으로 우승",  "✨"),
+    ("triple_crown",    "3관왕",           "누적 3회 이상 우승",                       "🎯"),
+    ("consecutive_2",   "연속 우승",       "2회 연속 우승 달성",                       "🔗"),
+    ("gold_master",     "골드 마스터",     "보유 골드 5,000 G 달성",                   "💎"),
+]
+
+
+def _ensure_achievements_table(conn):
+    """achievements 테이블이 없으면 생성 (내부 헬퍼)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS achievements (
+            key       TEXT PRIMARY KEY,
+            name      TEXT NOT NULL,
+            desc      TEXT NOT NULL,
+            icon      TEXT NOT NULL DEFAULT '🏆',
+            earned    INTEGER NOT NULL DEFAULT 0,
+            earned_at TEXT
+        )
+    """)
+    for key, name, desc, icon in ACHIEVEMENT_DEFS:
+        conn.execute(
+            "INSERT OR IGNORE INTO achievements (key, name, desc, icon, earned) VALUES (?,?,?,?,0)",
+            (key, name, desc, icon)
+        )
+
+
+def get_achievements() -> list[dict]:
+    """도전과제 전체 목록 반환 (달성 순서로 정렬)."""
+    try:
+        with get_connection() as conn:
+            _ensure_achievements_table(conn)
+            rows = conn.execute(
+                "SELECT * FROM achievements ORDER BY earned DESC, key ASC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def earn_achievement(key: str) -> str | None:
+    """업적 달성. 새로 달성한 경우 업적 이름 반환, 이미 달성 or 없으면 None."""
+    try:
+        with get_connection() as conn:
+            _ensure_achievements_table(conn)
+            row = conn.execute(
+                "SELECT name, earned FROM achievements WHERE key=?", (key,)
+            ).fetchone()
+            if not row or row["earned"]:
+                return None
+            conn.execute(
+                "UPDATE achievements SET earned=1, earned_at=datetime('now','localtime') WHERE key=?",
+                (key,)
+            )
+            conn.commit()
+            return row["name"]
+    except Exception:
+        return None
+
+
+def check_and_earn_achievements(
+    my_player_id: int,
+    achievement: str,
+    player_grade_before: str = "",
+    final_score: tuple[int, int] = (0, 0),
+    had_upset_in_tournament: bool = False,
+) -> list[str]:
+    """토너먼트 종료 시 달성 조건 확인 후 새로 달성된 업적 이름 목록 반환."""
+    newly_earned: list[str] = []
+
+    try:
+        with get_connection() as conn:
+            _ensure_achievements_table(conn)
+            summary_rows = conn.execute(
+                "SELECT key, value FROM game_state"
+            ).fetchall()
+        summary = {r["key"]: r["value"] for r in summary_rows}
+        total = int(summary.get("total_tournaments_played", 0))
+        prev_win_count = int(summary.get("total_wins", "0"))
+
+        def _try(key: str):
+            name = earn_achievement(key)
+            if name:
+                newly_earned.append(name)
+
+        if achievement == "우승":
+            _try("first_win")
+            if had_upset_in_tournament:
+                _try("upset_champion")
+            if player_grade_before in ("B", "C", "D", "E", "F"):
+                _try("underdog_hero")
+            a, b = final_score
+            if (a == 2 and b == 0) or (a == 3 and b == 0):
+                _try("perfect_final")
+            # 누적 우승 횟수
+            new_win_count = prev_win_count + 1
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO game_state (key,value) VALUES ('total_wins',?)",
+                    (str(new_win_count),)
+                )
+                conn.commit()
+            if new_win_count >= 3:
+                _try("triple_crown")
+            if new_win_count >= 2:
+                _try("consecutive_2")
+
+        if total >= 5:
+            _try("veteran_5")
+        if total >= 10:
+            _try("veteran_10")
+
+        # 골드 기반
+        gold = int(summary.get("gold", 0))
+        if gold >= 3000:
+            _try("gold_3000")
+        if gold >= 5000:
+            _try("gold_master")
+
+        # 라이벌전 승리 카운트
+        with get_connection() as conn:
+            rival_wins = conn.execute("""
+                SELECT COUNT(*) FROM match_results mr
+                WHERE mr.winner_id = ?
+                AND EXISTS (
+                    SELECT 1 FROM rivals rv
+                    WHERE rv.player_a_id = ?
+                    AND rv.player_b_id = CASE
+                        WHEN mr.player_a_id = ? THEN mr.player_b_id
+                        ELSE mr.player_a_id END
+                )
+            """, (my_player_id, my_player_id, my_player_id)).fetchone()[0]
+        if rival_wins >= 5:
+            _try("rival_slayer")
+
+    except Exception:
+        pass
+
+    return newly_earned
+
+
+# ── 스폰서 미션 ─────────────────────────────────────────────
+import random as _random
+
+_SPONSOR_MISSIONS = [
+    {"desc": "8강 이상 진출",   "targets": ["8강 탈락", "4강 탈락", "준우승", "우승"], "reward": 200},
+    {"desc": "4강 이상 진출",   "targets": ["4강 탈락", "준우승", "우승"],              "reward": 350},
+    {"desc": "결승 진출",       "targets": ["준우승", "우승"],                          "reward": 500},
+    {"desc": "우승 달성",       "targets": ["우승"],                                    "reward": 750},
+    {"desc": "이변으로 승리 1회", "targets": ["upset"],                                 "reward": 300},
+]
+
+
+def generate_sponsor_mission():
+    """새 토너먼트 시작 시 스폰서 미션 랜덤 생성 → game_state 저장."""
+    mission = _random.choice(_SPONSOR_MISSIONS)
+    try:
+        with get_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO game_state (key,value) VALUES ('sponsor_desc',?)",
+                         (mission["desc"],))
+            conn.execute("INSERT OR REPLACE INTO game_state (key,value) VALUES ('sponsor_reward',?)",
+                         (str(mission["reward"]),))
+            conn.execute("INSERT OR REPLACE INTO game_state (key,value) VALUES ('sponsor_targets',?)",
+                         (",".join(mission["targets"]),))
+            conn.commit()
+    except Exception:
+        pass
+
+
+def get_sponsor_mission() -> dict | None:
+    """현재 스폰서 미션 반환. 없으면 None."""
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT key,value FROM game_state WHERE key IN ('sponsor_desc','sponsor_reward','sponsor_targets')"
+            ).fetchall()
+        data = {r["key"]: r["value"] for r in rows}
+        if "sponsor_desc" not in data:
+            return None
+        return {
+            "desc":    data.get("sponsor_desc", ""),
+            "reward":  int(data.get("sponsor_reward", 0)),
+            "targets": data.get("sponsor_targets", "").split(","),
+        }
+    except Exception:
+        return None
+
+
+def check_sponsor_mission(achievement: str, had_upset: bool = False) -> int:
+    """스폰서 미션 달성 여부 확인 후 보상 반환 (달성 못했으면 0). 미션 삭제."""
+    mission = get_sponsor_mission()
+    if not mission:
+        return 0
+    targets = mission["targets"]
+    achieved = (achievement in targets) or (had_upset and "upset" in targets)
+    try:
+        with get_connection() as conn:
+            for key in ("sponsor_desc", "sponsor_reward", "sponsor_targets"):
+                conn.execute("DELETE FROM game_state WHERE key=?", (key,))
+            conn.commit()
+    except Exception:
+        pass
+    return mission["reward"] if achieved else 0
 
 
 def save_tournament_result(achievement: str, gold_earned: int):
