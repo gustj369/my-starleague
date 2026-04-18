@@ -323,7 +323,14 @@ def simulate_set(
                       underdog_boost=p1_a_boost, favorite_penalty=a_penalty)
     p1_b = calc_power(eff_b, b_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p1_b_boost, favorite_penalty=b_penalty)
-    p1_winner = player_a_id if p1_a >= p1_b else player_b_id
+    # QA-TIE 수정: >= 조건은 완전 동점(float 일치) 시 항상 A 승리 편향.
+    # → 동점이면 random.choice 로 공정하게 처리.
+    if p1_a > p1_b:
+        p1_winner = player_a_id
+    elif p1_b > p1_a:
+        p1_winner = player_b_id
+    else:
+        p1_winner = random.choice([player_a_id, player_b_id])
 
     # ── 페이즈 2: 중반 — 초반 모멘텀 +2 + 전략 적용 ──────────
     # PRD v13: +3→+2 (전술 우위의 Phase1 승리가 Phase2까지 과도하게 전파되던 문제 완화)
@@ -334,7 +341,12 @@ def simulate_set(
                       underdog_boost=p2_a_boost, favorite_penalty=a_penalty)
     p2_b = calc_power(eff_b, b_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=p2_b_boost, favorite_penalty=b_penalty)
-    p2_winner = player_a_id if p2_a >= p2_b else player_b_id
+    if p2_a > p2_b:
+        p2_winner = player_a_id
+    elif p2_b > p2_a:
+        p2_winner = player_b_id
+    else:
+        p2_winner = random.choice([player_a_id, player_b_id])
 
     # ── 페이즈 3: 후반 — 피로도 +15 시뮬레이션 + 전략 적용 ───
     eff_a_late = calc_effective(pa, ia, map_bonus_a, a_condition, rival_bonus=0,
@@ -346,7 +358,12 @@ def simulate_set(
                       underdog_boost=a_boost + strat_bonus_a["후반"], favorite_penalty=a_penalty)
     p3_b = calc_power(eff_b_late, b_grade, extra_luck_range=extra_luck_range,
                       underdog_boost=b_boost + strat_bonus_b["후반"], favorite_penalty=b_penalty)
-    p3_winner = player_a_id if p3_a >= p3_b else player_b_id
+    if p3_a > p3_b:
+        p3_winner = player_a_id
+    elif p3_b > p3_a:
+        p3_winner = player_b_id
+    else:
+        p3_winner = random.choice([player_a_id, player_b_id])
 
     # ── 세트 승자: 2/3 페이즈 승리 ───────────────────────────
     a_phase_wins = sum(

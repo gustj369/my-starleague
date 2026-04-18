@@ -36,6 +36,11 @@ def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # QA-WAL 수정: WAL(Write-Ahead Log) 모드 활성화.
+    # 기본 DELETE 모드에서는 finalize_match() 중 Alt+F4 강제 종료 시
+    # 커밋 미완료 데이터(성장 델타 적용 but 골드 미지급 등)가 발생할 수 있음.
+    # WAL 모드는 충돌 시 자동 롤백으로 DB 정합성을 보장함.
+    conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 

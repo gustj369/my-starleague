@@ -1068,6 +1068,14 @@ class SimulationScreen(QWidget):
 
     # ── 경기 종료 처리 ───────────────────────────────────────
     def _finalize(self):
+        # QA-GUARD-FIN 수정: finalize 재진입 방지.
+        # 이전 코드는 "▶ 결과 보기" 버튼을 빠르게 연타하면 finalize_match()가
+        # 2회 실행되어 match_results 중복 저장 + 골드 2배 지급이 발생했음.
+        if not self._match_over:
+            return
+        self._match_over = False      # 즉시 플래그 해제 → 재진입 차단
+        self.btn_next.setEnabled(False)   # 버튼 비활성화
+
         outcome = finalize_match(
             self._my_id, self._opp_id,
             self._all_sets, self._map_id,

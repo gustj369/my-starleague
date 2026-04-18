@@ -439,13 +439,17 @@ class MatchPrepScreen(QWidget):
         )
 
     def _on_use_drink(self):
-        """에너지드링크 사용 — 컨디션 1단계 상승, 아이템 제거"""
+        """에너지드링크 사용 — 컨디션 1단계 상승, 아이템 제거.
+
+        QA-DRINK 수정: 사용 후 player_items 를 재조회해 잔여 드링크 유무를
+        정확히 반영. 이전 코드는 조건(condition != 최상)만 보고 버튼을 활성화해
+        아이템이 소진됐음에도 버튼이 활성 상태로 남던 버그 수정.
+        """
         if self._drink_item is None or self._my is None:
             return
-        self._my_condition = apply_condition_item(self._my_condition)
-        self._update_condition_display()
 
         # 아이템 소진 (player_items에서 1개 삭제)
+        deleted = False
         with get_connection() as conn:
             row = conn.execute(
                 "SELECT id FROM player_items WHERE player_id=? AND item_id=? LIMIT 1",
@@ -454,9 +458,25 @@ class MatchPrepScreen(QWidget):
             if row:
                 conn.execute("DELETE FROM player_items WHERE id=?", (row["id"],))
                 conn.commit()
+                deleted = True
 
+        if not deleted:
+            # 이미 소진된 아이템 → 버튼만 비활성화하고 종료
+            self.btn_use_drink.setEnabled(False)
+            self._drink_item = None
+            return
+
+        self._my_condition = apply_condition_item(self._my_condition)
+        self._update_condition_display()
+
+        # 잔여 드링크 재확인 후 버튼 상태 갱신
+        remaining_items = _load_items(self._my["id"])
+        remaining_drink = next(
+            (it for it in remaining_items if it.get("condition_up", 0) > 0), None
+        )
+        self._drink_item = remaining_drink
         self.btn_use_drink.setEnabled(
-            self._my_condition != "최상"
+            remaining_drink is not None and self._my_condition != "최상"
         )
 
     def _fill_panel(self, slot: str, player: dict):
@@ -536,6 +556,10 @@ class MatchPrepScreen(QWidget):
                 lbl.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
 
     def _on_start(self):
+        # QA-GUARD-START 수정: 시그널 emit 전에 버튼 즉시 비활성화.
+        # 이전 코드는 emit 후 화면 전환 전까지 버튼이 활성 상태로 남아
+        # 빠른 연타 클릭 시 load_match()가 2회 호출될 수 있었음.
+        self.btn_start.setEnabled(False)
         if self._my and self._opp:
             idx = self.cmb_map.currentIndex()
             if 0 <= idx < len(self._maps):

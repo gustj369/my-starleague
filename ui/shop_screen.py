@@ -242,7 +242,15 @@ class ShopScreen(QWidget):
             return
         player = self._players[player_idx]
 
-        err = _buy_item(player["id"], item["id"], item["price"])
+        # QA-SHOP-BTN 수정: 구매 처리 중 버튼 즉시 비활성화 → 연타 방지.
+        # _buy_item()은 단일 트랜잭션(BUG-07 수정)이지만, QMessageBox 표시 전에
+        # 버튼이 활성 상태로 남아 연타 클릭 시 중복 구매 시도가 발생할 수 있었음.
+        self.btn_buy.setEnabled(False)
+        try:
+            err = _buy_item(player["id"], item["id"], item["price"])
+        finally:
+            self.btn_buy.setEnabled(True)   # 결과와 무관하게 복원
+
         if err:
             QMessageBox.warning(self, "구매 실패", err)
         else:
