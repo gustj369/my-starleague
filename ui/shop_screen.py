@@ -1,7 +1,7 @@
 """아이템 상점 화면 — 아이템 타입 탭 필터 추가"""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QComboBox, QMessageBox, QTabBar
+    QTableWidget, QTableWidgetItem, QComboBox, QMessageBox, QTabBar, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
