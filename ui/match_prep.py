@@ -431,6 +431,12 @@ class MatchPrepScreen(QWidget):
         else:
             self.lbl_items.setText("장착 아이템 없음 (상점에서 구매 가능)")
 
+        # GUARD-START 버그 수정: _on_start()에서 비활성화한 버튼을
+        # 새 경기 준비 화면 진입 시 반드시 재활성화.
+        # 이전 경기 시작 후 btn_start가 False 상태로 남아 다음 라운드에서
+        # 버튼이 영구 비활성화되는 버그 수정.
+        self.btn_start.setEnabled(True)
+
     def _update_condition_display(self):
         color = CONDITION_COLOR.get(self._my_condition, "#212529")
         self.lbl_condition.setText(self._my_condition)

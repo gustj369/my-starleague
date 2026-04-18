@@ -72,7 +72,7 @@ class NavBar(QWidget):
         lay.setContentsMargins(16, 0, 16, 0)
         lay.setSpacing(8)
 
-        logo = QLabel("★ MY STARLEAGUE")
+        logo = QLabel("★ LEGEND LEAGUE")
         logo.setStyleSheet(
             "color: #5B6CF6; font-weight: bold; font-size: 13px; background: transparent;"
         )
@@ -117,7 +117,7 @@ class NavBar(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("마이 스타리그  —  2012 시즌")
+        self.setWindowTitle("레전드 리그  —  2012 시즌")
         self.setMinimumSize(1100, 760)
         self.resize(1240, 840)
 
@@ -436,7 +436,7 @@ def main():
     import traceback
     try:
         app = QApplication(sys.argv)
-        app.setApplicationName("마이 스타리그")
+        app.setApplicationName("레전드 리그")
         load_fonts()   # Press Start 2P, Orbitron 등록
         app.setStyleSheet(MAIN_QSS)
 

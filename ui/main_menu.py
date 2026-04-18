@@ -34,13 +34,13 @@ class MainMenuScreen(QWidget):
         title_area = QVBoxLayout()
         title_area.setSpacing(10)
 
-        subtitle_lbl = QLabel("MY STARLEAGUE")
+        subtitle_lbl = QLabel("LEGEND LEAGUE")
         subtitle_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_lbl.setStyleSheet(
             "color: #5B6CF6; font-size: 13px; letter-spacing: 8px; font-weight: bold; background: transparent;"
         )
 
-        title_lbl = QLabel("마이 스타리그")
+        title_lbl = QLabel("레전드 리그")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_lbl.setStyleSheet(
             "color: #212529; font-size: 40px; font-weight: bold; background: transparent;"
