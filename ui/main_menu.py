@@ -46,7 +46,7 @@ class MainMenuScreen(QWidget):
             "color: #212529; font-size: 40px; font-weight: bold; background: transparent;"
         )
 
-        season_lbl = QLabel("2012 SEASON")
+        season_lbl = QLabel("2026 SEASON")
         season_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         season_lbl.setStyleSheet(
             "color: #ADB5BD; font-size: 13px; letter-spacing: 4px; background: transparent;"
@@ -87,7 +87,7 @@ class MainMenuScreen(QWidget):
         self.lbl_summary.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
 
         # 크레딧
-        credit = QLabel("Powered by Claude Code  ·  2012 KeSPA Brood War")
+        credit = QLabel("Powered by Claude Code  ·  2026 Legend League Season")
         credit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         credit.setStyleSheet("color: #CED4DA; font-size: 11px; background: transparent;")
 

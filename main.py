@@ -119,7 +119,7 @@ class NavBar(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("레전드 리그  —  2012 시즌")
+        self.setWindowTitle("레전드 리그  —  2026 시즌")
         self.setMinimumSize(1100, 760)
         self.resize(1240, 840)
 
