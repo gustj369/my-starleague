@@ -1,7 +1,8 @@
 """대결 기록 화면"""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QSplitter, QFrame, QScrollArea
+    QTableWidget, QTableWidgetItem, QSplitter, QFrame, QScrollArea,
+    QComboBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -58,6 +59,8 @@ class HistoryScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._history: list[dict] = []
+        self._filter_upset: bool = False
+        self._filter_player: str = "전체"
         self._build_ui()
 
     def _build_ui(self):
@@ -84,8 +87,29 @@ class HistoryScreen(QWidget):
         hist_lay.setContentsMargins(0, 0, 0, 0)
         hist_lay.setSpacing(6)
 
+        hist_title_row = QHBoxLayout()
         hist_title = QLabel("전체 매치 히스토리")
         hist_title.setStyleSheet("color: #5B6CF6; font-weight: bold; font-size: 14px; background: transparent;")
+
+        # ── 필터 컨트롤 ──────────────────────────────────────────
+        self.chk_upset = QCheckBox("⚡ 이변만 보기")
+        self.chk_upset.setStyleSheet(
+            "QCheckBox { color: #FF6B6B; font-size: 12px; font-weight: bold; }"
+            "QCheckBox::indicator { width: 14px; height: 14px; }"
+        )
+        self.chk_upset.toggled.connect(self._on_filter_changed)
+
+        self.cmb_player_filter = QComboBox()
+        self.cmb_player_filter.setMinimumWidth(120)
+        self.cmb_player_filter.setStyleSheet("font-size: 12px;")
+        self.cmb_player_filter.currentTextChanged.connect(self._on_filter_changed)
+
+        hist_title_row.addWidget(hist_title)
+        hist_title_row.addStretch()
+        hist_title_row.addWidget(self.chk_upset)
+        hist_title_row.addSpacing(12)
+        hist_title_row.addWidget(QLabel("선수:"))
+        hist_title_row.addWidget(self.cmb_player_filter)
 
         self.hist_table = QTableWidget()
         self.hist_table.setColumnCount(7)
@@ -126,7 +150,7 @@ class HistoryScreen(QWidget):
             lambda curr_row, _cc, _pr, _pc: self._on_history_row_changed(curr_row)
         )
 
-        hist_lay.addWidget(hist_title)
+        hist_lay.addLayout(hist_title_row)
         hist_lay.addWidget(self.hist_table)
         hist_lay.addWidget(self.detail_frame)
         splitter.addWidget(hist_widget)
@@ -166,12 +190,40 @@ class HistoryScreen(QWidget):
     # ──────────────────────────────────────────
     def refresh(self):
         self._history = _load_history()
+
+        # 선수 필터 콤보 갱신 (중복 없이)
+        player_names = sorted({
+            name
+            for r in self._history
+            for name in (r["a_name"], r["b_name"])
+        })
+        self.cmb_player_filter.blockSignals(True)
+        self.cmb_player_filter.clear()
+        self.cmb_player_filter.addItem("전체")
+        for n in player_names:
+            self.cmb_player_filter.addItem(n)
+        self.cmb_player_filter.blockSignals(False)
+
         self._fill_history()
         self._fill_records()
 
+    def _on_filter_changed(self):
+        self._filter_upset  = self.chk_upset.isChecked()
+        self._filter_player = self.cmb_player_filter.currentText()
+        self._fill_history()
+
     def _fill_history(self):
         self.hist_table.setRowCount(0)
-        for r in self._history:
+        # 필터 적용
+        filtered = self._history
+        if self._filter_upset:
+            filtered = [r for r in filtered if r.get("is_upset")]
+        if self._filter_player and self._filter_player != "전체":
+            filtered = [
+                r for r in filtered
+                if r["a_name"] == self._filter_player or r["b_name"] == self._filter_player
+            ]
+        for r in filtered:
             row = self.hist_table.rowCount()
             self.hist_table.insertRow(row)
             upset_val = "⚡ 이변!" if r.get("is_upset") else "—"

@@ -120,11 +120,16 @@ class MainMenuScreen(QWidget):
 
         if summary["total_tournaments"] > 0:
             achv  = summary["last_achievement"] or "—"
+            best  = summary.get("best_achievement", "")
             gold  = summary["gold"]
             count = summary["total_tournaments"]
-            self.lbl_summary.setText(
-                f"마지막 성적: {achv}   |   보유 골드: {gold:,} G   |   토너먼트: {count}회"
-            )
+            parts = [f"마지막 성적: {achv}"]
+            # 최고 성적이 마지막 성적과 다를 때만 추가 표시
+            if best and best != achv:
+                parts.append(f"🏆 최고: {best}")
+            parts.append(f"보유 골드: {gold:,} G")
+            parts.append(f"토너먼트: {count}회")
+            self.lbl_summary.setText("   |   ".join(parts))
         else:
             self.lbl_summary.setText("")
 

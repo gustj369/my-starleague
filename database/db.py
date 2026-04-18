@@ -262,8 +262,18 @@ def set_current_tournament_id(tid: int | None):
         conn.commit()
 
 
+# 업적 우선순위 (높을수록 좋은 성적)
+_ACHIEVEMENT_RANK: dict[str, int] = {
+    "우승":      5,
+    "준우승":    4,
+    "4강 탈락":  3,
+    "8강 탈락":  2,
+    "16강 탈락": 1,
+}
+
+
 def get_game_summary() -> dict:
-    """골드·누적 토너먼트 수·마지막 업적 반환"""
+    """골드·누적 토너먼트 수·마지막 업적·최고 업적 반환"""
     with get_connection() as conn:
         rows = conn.execute("SELECT key, value FROM game_state").fetchall()
     data = {r["key"]: r["value"] for r in rows}
@@ -271,11 +281,12 @@ def get_game_summary() -> dict:
         "gold": int(data.get("gold", 500)),
         "total_tournaments": int(data.get("total_tournaments_played", 0)),
         "last_achievement": data.get("last_achievement", ""),
+        "best_achievement": data.get("best_achievement", ""),
     }
 
 
 def save_tournament_result(achievement: str, gold_earned: int):
-    """토너먼트 종료 시 업적과 플레이 횟수 저장. current_tournament_id는 유지."""
+    """토너먼트 종료 시 업적·플레이 횟수·최고 업적 저장. current_tournament_id는 유지."""
     with get_connection() as conn:
         cur_count_row = conn.execute(
             "SELECT value FROM game_state WHERE key='total_tournaments_played'"
@@ -290,4 +301,16 @@ def save_tournament_result(achievement: str, gold_earned: int):
             "INSERT OR REPLACE INTO game_state (key, value) VALUES ('total_tournaments_played', ?)",
             (str(cur_count + 1),)
         )
+
+        # 최고 업적 갱신 (더 좋은 성적이면 교체)
+        best_row = conn.execute(
+            "SELECT value FROM game_state WHERE key='best_achievement'"
+        ).fetchone()
+        best = best_row["value"] if best_row else ""
+        if _ACHIEVEMENT_RANK.get(achievement, 0) >= _ACHIEVEMENT_RANK.get(best, 0):
+            conn.execute(
+                "INSERT OR REPLACE INTO game_state (key, value) VALUES ('best_achievement', ?)",
+                (achievement,)
+            )
+
         conn.commit()

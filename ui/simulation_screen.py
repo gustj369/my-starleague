@@ -516,6 +516,14 @@ class SimulationScreen(QWidget):
         return lbl
 
     # ── 외부에서 호출: 경기 로드 ─────────────────────────────
+    def hideEvent(self, event):
+        """화면이 숨겨질 때 활성 타이머 정지 — 타이머 누수 방지.
+        화면 전환 후에도 타이머 콜백이 실행되어 비활성 위젯을 건드리는
+        문제를 방지한다."""
+        if self._timer and self._timer.isActive():
+            self._timer.stop()
+        super().hideEvent(event)
+
     def load_match(self, my_id: int, opp_id: int, map_id: int,
                    my_condition: str, tm_id: int, round_name: str):
         self._reset_state()

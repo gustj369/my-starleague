@@ -55,17 +55,44 @@ C_LINE    = QColor("#DEE2E6")
 
 class BracketCanvas(QWidget):
     """브라켓을 직접 그리는 캔버스 위젯"""
+    sig_player_clicked = pyqtSignal(int)   # player_id — 선수 행 클릭 시 방출
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(CANVAS_W, CANVAS_H)
         self._data: dict[str, list[dict]] = {}
         self._my_id: int | None = None
+        # ─── BUG FIX: paintEvent는 마우스 이동 등 매 갱신마다 호출됨.
+        #     DB 연결을 paintEvent 내부에서 직접 열면 성능 저하 및 드문 경우
+        #     충돌 원인이 됨 → set_data() 시 모든 선수 이름을 캐싱.
+        self._name_cache: dict[int, str] = {}
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def set_data(self, data: dict[str, list[dict]], my_id: int):
         self._data = data
         self._my_id = my_id
+        self._preload_names()   # DB 일괄 조회 → 캐시 갱신
         self.update()
+
+    def _preload_names(self):
+        """모든 매치의 선수 ID를 모아 DB에서 한 번에 조회 후 캐시에 저장"""
+        pids: set[int] = set()
+        for matches in self._data.values():
+            for m in matches:
+                for key in ("player_a_id", "player_b_id", "winner_id"):
+                    v = m.get(key)
+                    if v:
+                        pids.add(v)
+        if not pids:
+            self._name_cache = {}
+            return
+        with get_connection() as conn:
+            placeholders = ",".join("?" * len(pids))
+            rows = conn.execute(
+                f"SELECT id, name FROM players WHERE id IN ({placeholders})",
+                list(pids),
+            ).fetchall()
+        self._name_cache = {r["id"]: r["name"] for r in rows}
 
     # ── 데이터 접근 헬퍼 ──────────────────────────
     def _get_match(self, round_idx: int, match_idx: int) -> dict | None:
@@ -78,9 +105,39 @@ class BracketCanvas(QWidget):
     def _player_name(self, player_id: int | None) -> str:
         if player_id is None:
             return "?"
-        with get_connection() as conn:
-            row = conn.execute("SELECT name FROM players WHERE id=?", (player_id,)).fetchone()
-        return row["name"] if row else "?"
+        return self._name_cache.get(player_id, "?")
+
+    # ── 클릭 이벤트 ──────────────────────────────
+    def mousePressEvent(self, event):
+        pid = self._find_player_at(event.pos().x(), event.pos().y())
+        if pid is not None:
+            self.sig_player_clicked.emit(pid)
+        super().mousePressEvent(event)
+
+    def _find_player_at(self, x: float, y: float) -> int | None:
+        """클릭 좌표가 어느 선수 행 위인지 검사, 해당 player_id 반환"""
+        counts = [8, 4, 2, 1]
+        for r_idx in range(4):
+            for m_idx in range(counts[r_idx]):
+                m = self._get_match(r_idx, m_idx)
+                if m is None:
+                    continue
+                cx  = COL_X[r_idx]
+                cy  = ALL_C[r_idx][m_idx]
+                top = cy - MATCH_H // 2
+
+                # 선수 A 행
+                if cx <= x <= cx + MATCH_W and top <= y <= top + UNIT:
+                    pid = m.get("player_a_id")
+                    if pid:
+                        return pid
+                # 선수 B 행
+                b_top = top + UNIT + 4
+                if cx <= x <= cx + MATCH_W and b_top <= y <= b_top + UNIT:
+                    pid = m.get("player_b_id")
+                    if pid:
+                        return pid
+        return None
 
     # ── 페인트 ────────────────────────────────────
     def paintEvent(self, event):
@@ -290,6 +347,7 @@ class BracketScreen(QWidget):
         scroll.setWidgetResizable(False)
         scroll.setStyleSheet("QScrollArea { border: none; }")
         self.canvas = BracketCanvas()
+        self.canvas.sig_player_clicked.connect(self._on_player_clicked)
         scroll.setWidget(self.canvas)
 
         # 하단 버튼
@@ -362,6 +420,15 @@ class BracketScreen(QWidget):
             m['status'] == 'completed' or m['is_my_match']
             for m in matches
         )
+
+    def _on_player_clicked(self, player_id: int):
+        """브라켓 선수 행 클릭 → 프로필 팝업"""
+        from ui.player_profile_dialog import PlayerProfileDialog
+        with get_connection() as conn:
+            row = conn.execute("SELECT * FROM players WHERE id=?", (player_id,)).fetchone()
+        if row:
+            dlg = PlayerProfileDialog(dict(row), self)
+            dlg.exec()
 
     def _on_run_ai(self):
         if self._tid is None:

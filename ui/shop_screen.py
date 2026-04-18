@@ -133,8 +133,35 @@ class ShopScreen(QWidget):
         buy_row.addWidget(QLabel("장착 선수:"))
         self.cmb_player = QComboBox()
         self.cmb_player.setMinimumWidth(160)
+        self.cmb_player.currentIndexChanged.connect(self._update_equipped_panel)
         buy_row.addWidget(self.cmb_player)
         buy_row.addStretch()
+
+        # 장착 아이템 현황 패널
+        self.equipped_frame = QFrame()
+        self.equipped_frame.setStyleSheet(
+            "QFrame { background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 6px; }"
+        )
+        eq_lay = QHBoxLayout(self.equipped_frame)
+        eq_lay.setContentsMargins(12, 6, 12, 6)
+        eq_lay.setSpacing(6)
+        eq_title = QLabel("장착 슬롯:")
+        eq_title.setStyleSheet(
+            "color: #868E96; font-size: 12px; font-weight: bold; background: transparent;"
+        )
+        eq_lay.addWidget(eq_title)
+        self.lbl_equipped_slots: list[QLabel] = []
+        for _ in range(MAX_ITEMS):
+            lbl = QLabel("— 비어있음")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setMinimumWidth(140)
+            lbl.setStyleSheet(
+                "color: #ADB5BD; font-size: 12px; background: #FFFFFF; "
+                "border: 1px solid #E9ECEF; border-radius: 4px; padding: 3px 8px;"
+            )
+            self.lbl_equipped_slots.append(lbl)
+            eq_lay.addWidget(lbl)
+        eq_lay.addStretch()
 
         # 아이템 테이블
         self.table = QTableWidget()
@@ -168,6 +195,7 @@ class ShopScreen(QWidget):
         root.addWidget(make_separator())
         root.addWidget(self.tab_bar)
         root.addLayout(buy_row)
+        root.addWidget(self.equipped_frame)
         root.addWidget(self.table, 1)
         root.addLayout(btn_row)
 
@@ -180,12 +208,49 @@ class ShopScreen(QWidget):
         self._players = _load_players()
         self.lbl_gold.setText(f"보유 골드: {get_gold()} G")
 
+        self.cmb_player.blockSignals(True)
         self.cmb_player.clear()
         for p in self._players:
             cnt = _count_player_items(p["id"])
             self.cmb_player.addItem(f"{p['name']}  ({RACE_DISPLAY.get(p['race'], p['race'])})  [{cnt}/{MAX_ITEMS}]")
+        self.cmb_player.blockSignals(False)
 
+        self._update_equipped_panel()
         self._reload_table()
+
+    def _update_equipped_panel(self):
+        """선택된 선수의 장착 아이템 슬롯 패널을 갱신한다."""
+        player_idx = self.cmb_player.currentIndex()
+        if player_idx < 0 or player_idx >= len(self._players):
+            for lbl in self.lbl_equipped_slots:
+                lbl.setText("— 비어있음")
+                lbl.setStyleSheet(
+                    "color: #ADB5BD; font-size: 12px; background: #FFFFFF; "
+                    "border: 1px solid #E9ECEF; border-radius: 4px; padding: 3px 8px;"
+                )
+            return
+        player = self._players[player_idx]
+        with get_connection() as conn:
+            rows = conn.execute(
+                """SELECT i.name FROM player_items pi
+                   JOIN items i ON i.id = pi.item_id
+                   WHERE pi.player_id = ?""",
+                (player["id"],),
+            ).fetchall()
+        item_names = [r["name"] for r in rows]
+        for i, lbl in enumerate(self.lbl_equipped_slots):
+            if i < len(item_names):
+                lbl.setText(f"✓ {item_names[i]}")
+                lbl.setStyleSheet(
+                    "color: #15803D; font-size: 12px; background: #F0FDF4; "
+                    "border: 1px solid #BBF7D0; border-radius: 4px; padding: 3px 8px;"
+                )
+            else:
+                lbl.setText("— 비어있음")
+                lbl.setStyleSheet(
+                    "color: #ADB5BD; font-size: 12px; background: #FFFFFF; "
+                    "border: 1px solid #E9ECEF; border-radius: 4px; padding: 3px 8px;"
+                )
 
     def _reload_table(self):
         self._items = _load_items(self._current_type)
@@ -259,6 +324,18 @@ class ShopScreen(QWidget):
             return
         player = self._players[player_idx]
 
+        # 구매 확인 다이얼로그 — 실수 클릭으로 골드 소비 방지
+        reply = QMessageBox.question(
+            self,
+            "구매 확인",
+            f"[{item['name']}]을 {player['name']}에게 구매하시겠습니까?\n\n"
+            f"가격: {item['price']} G  |  현재 보유: {get_gold():,} G",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
         # QA-SHOP-BTN 수정: 구매 처리 중 버튼 즉시 비활성화 → 연타 방지.
         # _buy_item()은 단일 트랜잭션(BUG-07 수정)이지만, QMessageBox 표시 전에
         # 버튼이 활성 상태로 남아 연타 클릭 시 중복 구매 시도가 발생할 수 있었음.
@@ -274,6 +351,7 @@ class ShopScreen(QWidget):
             QMessageBox.information(
                 self, "구매 완료",
                 f"{player['name']}에게 [{item['name']}]을 장착했습니다.\n"
-                f"잔여 골드: {get_gold()} G"
+                f"잔여 골드: {get_gold():,} G"
             )
             self.refresh()
+            self._update_equipped_panel()
