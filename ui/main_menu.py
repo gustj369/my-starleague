@@ -81,10 +81,12 @@ class MainMenuScreen(QWidget):
         btn_area.addWidget(self.btn_back)
         btn_area.addWidget(self.btn_exit)
 
-        # 세이브 요약
+        # 세이브 요약 카드 (테두리 포함)
         self.lbl_summary = QLabel("")
         self.lbl_summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_summary.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
+        self.lbl_summary.setStyleSheet(
+            "color: #868E96; font-size: 12px; background: transparent;"
+        )
 
         # 크레딧
         credit = QLabel("Powered by Claude Code  ·  2026 Legend League Season")
@@ -130,8 +132,17 @@ class MainMenuScreen(QWidget):
             parts.append(f"보유 골드: {gold:,} G")
             parts.append(f"토너먼트: {count}회")
             self.lbl_summary.setText("   |   ".join(parts))
+            # 카드 스타일 적용 (데이터 있을 때)
+            self.lbl_summary.setStyleSheet(
+                "color: #5B6CF6; font-size: 12px; font-weight: bold; "
+                "background: #EEF2FF; border: 1px solid #C5C8FF; "
+                "border-radius: 8px; padding: 8px 20px;"
+            )
         else:
             self.lbl_summary.setText("")
+            self.lbl_summary.setStyleSheet(
+                "color: #868E96; font-size: 12px; background: transparent;"
+            )
 
     @staticmethod
     def _make_btn(text: str, primary=False, danger=False) -> QPushButton:

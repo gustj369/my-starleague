@@ -254,6 +254,7 @@ class ShopScreen(QWidget):
 
     def _reload_table(self):
         self._items = _load_items(self._current_type)
+        current_gold = get_gold()   # 가격 셀 색상 결정을 위해 미리 조회
         self.table.setRowCount(0)
         for item in self._items:
             row = self.table.rowCount()
@@ -299,6 +300,12 @@ class ShopScreen(QWidget):
                 if ci >= 4 and isinstance(val, int) and val > 0:
                     ti.setForeground(QColor("#51CF66"))
                     ti.setText(f"+{val}")
+                # 가격 컬럼: 골드 부족 시 빨간색
+                if ci == 3:
+                    if item["price"] > current_gold:
+                        ti.setForeground(QColor("#FF6B6B"))
+                    else:
+                        ti.setForeground(QColor("#212529"))
                 # 유형 컬럼 색상
                 if ci == 1:
                     type_color = {

@@ -143,10 +143,26 @@ class FinalResultScreen(QWidget):
         self._snap = snap_before
 
         color = ACHIEVEMENT_COLOR.get(achievement, "#868E96")
-        self.lbl_achieve.setText(achievement)
-        self.lbl_achieve.setStyleSheet(
-            f"color: {color}; font-size: 36px; font-weight: bold; background: transparent;"
-        )
+        # 우승 시 더 강렬한 축하 연출
+        if achievement == "우승":
+            self.lbl_achieve.setText("🏆  우승!  🏆")
+            self.lbl_achieve.setStyleSheet(
+                f"color: {color}; font-size: 42px; font-weight: bold; "
+                "background: #FFFBEB; border: 3px solid #F59E0B; "
+                "border-radius: 14px; padding: 10px 28px;"
+            )
+        elif achievement == "준우승":
+            self.lbl_achieve.setText("🥈  준우승")
+            self.lbl_achieve.setStyleSheet(
+                f"color: {color}; font-size: 36px; font-weight: bold; "
+                "background: #F8F8F8; border: 2px solid #868E96; "
+                "border-radius: 12px; padding: 8px 20px;"
+            )
+        else:
+            self.lbl_achieve.setText(achievement)
+            self.lbl_achieve.setStyleSheet(
+                f"color: {color}; font-size: 36px; font-weight: bold; background: transparent;"
+            )
 
         with get_connection() as conn:
             now = dict(conn.execute(
@@ -242,8 +258,11 @@ class FinalResultScreen(QWidget):
             self._fd = 1
         r = min(255, 200 + self._flash)
         g = min(255, 130 + self._flash // 2)
+        border_r = min(255, 240 + self._flash // 4)
         self.lbl_achieve.setStyleSheet(
-            f"color: rgb({r},{g},0); font-size: 36px; font-weight: bold; background: transparent;"
+            f"color: rgb({r},{g},0); font-size: 42px; font-weight: bold; "
+            f"background: #FFFBEB; border: 3px solid rgb({border_r},{g//2},0); "
+            "border-radius: 14px; padding: 10px 28px;"
         )
 
     def show_growth(self, events: list):
@@ -276,14 +295,19 @@ class FinalResultScreen(QWidget):
             self.lbl_path.setText("경기 기록 없음")
             return
 
-        round_order = ["16강", "8강", "4강", "결승"]
         parts = []
         for m in matches:
             opp_name = m["b_name"] if m["player_a_id"] == my_player_id else m["a_name"]
             won = (m["winner_id"] == my_player_id)
             score = f"{m['a_wins']}-{m['b_wins']}" if m["player_a_id"] == my_player_id else f"{m['b_wins']}-{m['a_wins']}"
             icon = "★" if won else "✗"
-            color_tag = "승리" if won else "패배"
-            parts.append(f"{m['round']}  {icon}  vs {opp_name}  ({score})")
+            step_color = "#15803D" if won else "#DC2626"
+            parts.append(
+                f'<span style="color:{step_color}; font-weight:bold;">'
+                f'{m["round"]} {icon}</span>'
+                f'<span style="color:#868E96;"> vs {opp_name} ({score})</span>'
+            )
 
-        self.lbl_path.setText("   →   ".join(parts))
+        arrow = '<span style="color:#ADB5BD;">  →  </span>'
+        self.lbl_path.setText(arrow.join(parts))
+        self.lbl_path.setTextFormat(Qt.TextFormat.RichText)

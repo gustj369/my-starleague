@@ -35,18 +35,20 @@ class ResultScreen(QWidget):
         root.setContentsMargins(30, 30, 30, 30)
         root.setSpacing(16)
 
-        # 승패 발표 배너
+        # 승패 발표 배너 — 더 크고 눈에 띄게
         self.lbl_result = QLabel("결과 발표")
         self.lbl_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_result.setStyleSheet(
-            "color: #F59E0B; font-size: 30px; font-weight: bold; background: transparent;"
+            "color: #F59E0B; font-size: 36px; font-weight: bold; background: transparent;"
         )
 
-        # 승자 이름
+        # 승자 이름 — 배경 카드 포함
         self.lbl_winner = QLabel("")
         self.lbl_winner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_winner.setStyleSheet(
-            "color: #212529; font-size: 22px; font-weight: bold; background: transparent;"
+            "color: #212529; font-size: 24px; font-weight: bold; "
+            "background: #FFFBEB; border: 2px solid #F59E0B; "
+            "border-radius: 10px; padding: 6px 20px;"
         )
 
         # 전투력 표시
@@ -259,6 +261,16 @@ class ResultScreen(QWidget):
                     delta: dict, is_winner: bool):
         frame = self.panel_a if slot == "A" else self.panel_b
 
+        # 패널 배경: 승리=황금 틴트, 패배=빨강 틴트
+        if is_winner:
+            frame.setStyleSheet(
+                "QFrame { background: #FFFBEB; border: 2px solid #F59E0B; border-radius: 8px; }"
+            )
+        else:
+            frame.setStyleSheet(
+                "QFrame { background: #FFF5F5; border: 1px solid #FECACA; border-radius: 8px; }"
+            )
+
         frame.findChild(QLabel, f"name_{slot}").setText(new["name"])
 
         win_text = "🏆  승리" if is_winner else "💀  패배"
@@ -339,7 +351,7 @@ class ResultScreen(QWidget):
         r = min(255, 200 + self._flash)
         g = min(255, 130 + self._flash // 2)
         self.lbl_result.setStyleSheet(
-            f"color: rgb({r},{g},0); font-size: 30px; font-weight: bold; background: transparent;"
+            f"color: rgb({r},{g},0); font-size: 36px; font-weight: bold; background: transparent;"
         )
 
     def _flash_upset(self):

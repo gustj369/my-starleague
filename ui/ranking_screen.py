@@ -29,6 +29,9 @@ RANK_COLORS = {
 WIN_RATE_HIGH = 60.0
 WIN_RATE_LOW  = 40.0
 
+# 상위 3위 행 배경색 (금/은/동)
+RANK_BG = {1: "#FEF9E7", 2: "#F5F5F5", 3: "#FDF0E5"}
+
 
 # ── SQL ───────────────────────────────────────────────────────────
 _BASE_SQL = """
@@ -217,6 +220,10 @@ class RankingScreen(QWidget):
                     if col_idx != 1
                     else Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
                 )
+
+                # ── 상위 3위 행 배경 틴트 ──
+                if rank in RANK_BG:
+                    item.setBackground(QColor(RANK_BG[rank]))
 
                 # ── 순위 색상 강조 ──
                 if rank_color and col_idx == 0:

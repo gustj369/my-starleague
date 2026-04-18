@@ -217,22 +217,40 @@ class BracketCanvas(QWidget):
 
         rect = QRectF(cx, top, MATCH_W, MATCH_H)
 
-        # 박스 배경
-        is_my = m and bool(m.get('is_my_match'))
+        # 박스 상태 판별
+        is_my   = m and bool(m.get('is_my_match'))
         completed = m and m.get('status') == 'completed'
+        a_id    = m.get('player_a_id') if m else None
+        b_id    = m.get('player_b_id') if m else None
+        is_rival_m = bool(a_id and b_id and is_rival(a_id, b_id))
 
-        border_color = C_MY if is_my else (C_WIN if completed else C_BORDER)
-        border_w = 2 if is_my else 1
+        # 배경색: 내 경기(인디고) > 라이벌(연분홍) > 완료(연초록) > 기본(흰색)
+        if is_my:
+            box_color = QColor("#EEF2FF")
+        elif is_rival_m:
+            box_color = QColor("#FFF5F5")
+        elif completed:
+            box_color = QColor("#F0FDF4")
+        else:
+            box_color = C_BOX
 
-        p.setBrush(QBrush(C_BOX))
+        # 테두리색: 내 경기=인디고, 라이벌=빨강, 완료=초록, 기본=회색
+        if is_my:
+            border_color, border_w = C_MY, 2
+        elif is_rival_m:
+            border_color, border_w = QColor("#FF6B6B"), 2
+        elif completed:
+            border_color, border_w = C_WIN, 1
+        else:
+            border_color, border_w = C_BORDER, 1
+
+        p.setBrush(QBrush(box_color))
         p.setPen(QPen(border_color, border_w))
         p.drawRoundedRect(rect, 4, 4)
 
         if m is None:
             return
 
-        a_id = m.get('player_a_id')
-        b_id = m.get('player_b_id')
         w_id = m.get('winner_id')
 
         self._draw_player_row(p, cx, top,             a_id, w_id, is_my)

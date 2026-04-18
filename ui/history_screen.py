@@ -236,13 +236,21 @@ class HistoryScreen(QWidget):
                 upset_val,
                 r["timestamp"][:16],
             ]
+            is_upset_row = bool(r.get("is_upset"))
             for ci, val in enumerate(cols):
                 ti = QTableWidgetItem(val)
                 ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                # 이변 행 전체 배경 강조 (연분홍)
+                if is_upset_row:
+                    ti.setBackground(QColor("#FFF5F5"))
                 if ci == 4:
                     ti.setForeground(QColor("#5B6CF6"))
-                elif ci == 5 and r.get("is_upset"):
+                elif ci == 5 and is_upset_row:
                     ti.setForeground(QColor("#FF6B6B"))
+                    from PyQt6.QtGui import QFont as _QFont
+                    f = _QFont()
+                    f.setBold(True)
+                    ti.setFont(f)
                 self.hist_table.setItem(row, ci, ti)
 
     def _on_history_row_changed(self, row: int):
