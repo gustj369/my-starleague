@@ -164,8 +164,13 @@ class MatchPrepScreen(QWidget):
             QProgressBar { background: #E9ECEF; border-radius: 4px; }
             QProgressBar::chunk { background: #FF6B6B; border-radius: 4px; }
         """)
+        self.lbl_fatigue_warn = QLabel("")
+        self.lbl_fatigue_warn.setStyleSheet("color: #FF6B6B; font-size: 11px; background: transparent;")
+        self.lbl_fatigue_warn.hide()
+
         fat_lay.addLayout(fat_title_row)
         fat_lay.addWidget(self.bar_fatigue)
+        fat_lay.addWidget(self.lbl_fatigue_warn)
 
         status_row.addWidget(cond_frame, 1)
         status_row.addSpacing(12)
@@ -342,10 +347,30 @@ class MatchPrepScreen(QWidget):
         self._my_condition = roll_condition(self._my["grade"])
         self._update_condition_display()
 
-        # 피로도 표시
+        # 피로도 표시 + 경고
         fat = self._my.get("fatigue", 0)
         self.lbl_fatigue_val.setText(f"{fat}/100")
         self.bar_fatigue.setValue(fat)
+        if fat >= 80:
+            self.lbl_fatigue_warn.setText("⚠ 심각한 피로 — 전투력 -20%")
+            self.lbl_fatigue_warn.setStyleSheet(
+                "color: #DC2626; font-size: 11px; font-weight: bold; background: transparent;"
+            )
+            self.lbl_fatigue_warn.show()
+        elif fat >= 60:
+            self.lbl_fatigue_warn.setText("⚠ 피로 누적 — 전투력 -12%")
+            self.lbl_fatigue_warn.setStyleSheet(
+                "color: #FF6B6B; font-size: 11px; background: transparent;"
+            )
+            self.lbl_fatigue_warn.show()
+        elif fat >= 30:
+            self.lbl_fatigue_warn.setText("피로 감지 — 전투력 -5%")
+            self.lbl_fatigue_warn.setStyleSheet(
+                "color: #F59E0B; font-size: 11px; background: transparent;"
+            )
+            self.lbl_fatigue_warn.show()
+        else:
+            self.lbl_fatigue_warn.hide()
 
         # 에너지드링크 보유 여부 확인
         items = _load_items(my_id)

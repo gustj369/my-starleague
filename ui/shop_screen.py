@@ -199,6 +199,22 @@ class ShopScreen(QWidget):
             extra_cond = item.get("condition_up", 0)
             extra_fat  = item.get("fatigue_recover", 0)
 
+            # 아이템 툴팁 문자열 생성
+            tip_lines = [f"【{item['name']}】  {itype}  |  {item['price']}G",
+                         "", item["description"], ""]
+            bonus_parts = []
+            for key, label in zip(STAT_KEYS, STAT_LABELS):
+                v = item.get(f"{key}_bonus", 0)
+                if v > 0:
+                    bonus_parts.append(f"{label} +{v}")
+            if bonus_parts:
+                tip_lines.append("능력치 효과: " + " · ".join(bonus_parts))
+            if extra_cond > 0:
+                tip_lines.append("컨디션 1단계 상향 (저조→보통→최상)")
+            if extra_fat > 0:
+                tip_lines.append("피로도 1구간 회복 (81~100→60 / 61~80→30 / 31~60→0)")
+            tooltip_text = "\n".join(tip_lines)
+
             cols = [
                 item["name"],
                 itype,
@@ -214,6 +230,7 @@ class ShopScreen(QWidget):
             for ci, val in enumerate(cols):
                 ti = QTableWidgetItem(str(val))
                 ti.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                ti.setToolTip(tooltip_text)
                 if ci >= 4 and isinstance(val, int) and val > 0:
                     ti.setForeground(QColor("#51CF66"))
                     ti.setText(f"+{val}")

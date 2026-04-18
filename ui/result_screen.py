@@ -136,10 +136,21 @@ class ResultScreen(QWidget):
         result_lbl.setStyleSheet("font-size: 18px; font-weight: bold; background: transparent;")
         result_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        growth_lbl = QLabel("")
+        growth_lbl.setObjectName(f"growth_{slot}")
+        growth_lbl.setWordWrap(True)
+        growth_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        growth_lbl.setStyleSheet(
+            "font-size: 11px; background: #F0FDF4; border: 1px solid #BBF7D0; "
+            "border-radius: 4px; padding: 3px 8px; color: #15803D;"
+        )
+        growth_lbl.hide()
+
         lay.addWidget(slot_lbl)
         lay.addWidget(name_lbl)
         lay.addWidget(result_lbl)
         lay.addLayout(grade_row)
+        lay.addWidget(growth_lbl)
         lay.addWidget(make_separator())
 
         for key, label in zip(STAT_KEYS, STAT_LABELS):
@@ -272,6 +283,38 @@ class ResultScreen(QWidget):
             bar = frame.findChild(StatBar, f"bar_{slot}_{key}")
             if bar:
                 bar.set_value(new[key], delta.get(key, 0))
+
+        # 성장 하이라이트 요약
+        growth_lbl = frame.findChild(QLabel, f"growth_{slot}")
+        if growth_lbl:
+            ups   = [STAT_LABELS[i] for i, k in enumerate(STAT_KEYS) if delta.get(k, 0) > 0]
+            downs = [STAT_LABELS[i] for i, k in enumerate(STAT_KEYS) if delta.get(k, 0) < 0]
+            parts = []
+            if ups:
+                parts.append("↑ " + "·".join(
+                    f"{STAT_LABELS[STAT_KEYS.index(k)]} +{delta[k]}"
+                    for k in STAT_KEYS if delta.get(k, 0) > 0
+                ))
+            if downs:
+                parts.append("↓ " + "·".join(
+                    f"{STAT_LABELS[STAT_KEYS.index(k)]} {delta[k]}"
+                    for k in STAT_KEYS if delta.get(k, 0) < 0
+                ))
+            if parts:
+                if downs and not ups:
+                    growth_lbl.setStyleSheet(
+                        "font-size: 11px; background: #FFF5F5; border: 1px solid #FECACA; "
+                        "border-radius: 4px; padding: 3px 8px; color: #DC2626;"
+                    )
+                else:
+                    growth_lbl.setStyleSheet(
+                        "font-size: 11px; background: #F0FDF4; border: 1px solid #BBF7D0; "
+                        "border-radius: 4px; padding: 3px 8px; color: #15803D;"
+                    )
+                growth_lbl.setText("  |  ".join(parts))
+                growth_lbl.show()
+            else:
+                growth_lbl.hide()
 
         quote_lbl = frame.findChild(QLabel, f"quote_{slot}")
         if quote_lbl:

@@ -10,7 +10,8 @@ sys.path.insert(0, BASE_DIR)
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QStackedWidget,
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect,
+    QMessageBox
 )
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve
 
@@ -45,6 +46,7 @@ from ui.player_manager import PlayerManagerScreen
 from ui.shop_screen import ShopScreen
 from ui.history_screen import HistoryScreen
 from ui.ranking_screen import RankingScreen
+from ui.onboarding_dialog import OnboardingDialog
 
 # 화면 인덱스
 IDX_SLOT       = 0   # 슬롯 선택 (시작 화면)
@@ -263,13 +265,16 @@ class MainWindow(QMainWindow):
 
     # ── 슬롯 선택 ────────────────────────────────────────────
     def _on_slot_new_game(self, slot_idx: int):
-        """슬롯 초기화 + 새 게임 시작 → 선수 선택으로 직행"""
+        """슬롯 초기화 + 새 게임 시작 → 온보딩 → 선수 선택"""
         from database.seed_data import seed
         delete_slot(slot_idx)
         set_active_slot(slot_idx)
         migrate_db()
         seed()         # 새 슬롯: gold=500, 선수 초기화
         self.navbar.setVisible(True)
+        # 첫 플레이 온보딩 안내
+        dlg = OnboardingDialog(self)
+        dlg.exec()
         self.s_select.refresh()
         self._go(IDX_SELECT)
 
@@ -429,6 +434,26 @@ class MainWindow(QMainWindow):
         self._my_id = None
         self.s_menu.refresh()
         self._go(IDX_MENU)
+
+    # ── 종료 확인 다이얼로그 ──────────────────────────────────
+    def closeEvent(self, event):
+        """경기 진행 중일 때 종료 전 확인 다이얼로그 표시."""
+        current_idx = self.stack.currentIndex()
+        # 슬롯 선택·메인 메뉴·최종 결과 화면은 즉시 종료 허용
+        if current_idx in (IDX_SLOT, IDX_MENU, IDX_FINAL):
+            event.accept()
+            return
+        reply = QMessageBox.question(
+            self,
+            "게임 종료",
+            "게임을 종료하시겠습니까?\n진행 중인 데이터는 자동 저장됩니다.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
 
 
 def main():

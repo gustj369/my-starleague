@@ -104,8 +104,28 @@ class HistoryScreen(QWidget):
         self.hist_table.setColumnWidth(4, 100)
         self.hist_table.setColumnWidth(5, 130)
 
+        # 클릭 시 스탯 변화 상세 패널
+        self.detail_frame = QFrame()
+        self.detail_frame.setStyleSheet(
+            "QFrame { background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 6px; }"
+        )
+        detail_lay = QHBoxLayout(self.detail_frame)
+        detail_lay.setContentsMargins(12, 8, 12, 8)
+        detail_lay.setSpacing(20)
+        self.lbl_detail_a = QLabel("행을 클릭하면 스탯 변화를 확인할 수 있습니다.")
+        self.lbl_detail_a.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
+        self.lbl_detail_a.setWordWrap(True)
+        self.lbl_detail_b = QLabel("")
+        self.lbl_detail_b.setStyleSheet("color: #868E96; font-size: 11px; background: transparent;")
+        self.lbl_detail_b.setWordWrap(True)
+        detail_lay.addWidget(self.lbl_detail_a, 1)
+        detail_lay.addWidget(self.lbl_detail_b, 1)
+
+        self.hist_table.currentRowChanged.connect(self._on_history_row_changed)
+
         hist_lay.addWidget(hist_title)
         hist_lay.addWidget(self.hist_table)
+        hist_lay.addWidget(self.detail_frame)
         splitter.addWidget(hist_widget)
 
         # 하단: 선수별 전적
@@ -169,6 +189,50 @@ class HistoryScreen(QWidget):
                 elif ci == 5 and r.get("is_upset"):
                     ti.setForeground(QColor("#FF6B6B"))
                 self.hist_table.setItem(row, ci, ti)
+
+    def _on_history_row_changed(self, row: int):
+        """히스토리 행 선택 시 스탯 변화 상세 표시"""
+        if row < 0 or row >= len(self._history):
+            self.lbl_detail_a.setText("행을 클릭하면 스탯 변화를 확인할 수 있습니다.")
+            self.lbl_detail_b.setText("")
+            return
+        r = self._history[row]
+
+        def _delta_text(name: str, deltas: list[tuple[str, int]]) -> str:
+            ups   = [f"{lbl} +{v}" for lbl, v in deltas if v > 0]
+            downs = [f"{lbl} {v}" for lbl, v in deltas if v < 0]
+            parts = []
+            if ups:
+                parts.append("↑ " + " · ".join(ups))
+            if downs:
+                parts.append("↓ " + " · ".join(downs))
+            change = "  |  ".join(parts) if parts else "변화 없음"
+            return f"[{name}]  {change}"
+
+        prefix_map = {"a": "a", "b": "b"}
+        result = {}
+        for side, name_key in [("a", "a_name"), ("b", "b_name")]:
+            deltas = [
+                (lbl, r.get(f"{side}_{key}_delta", 0))
+                for key, lbl in zip(STAT_KEYS, STAT_LABELS)
+            ]
+            result[side] = _delta_text(r[name_key], deltas)
+
+        winner_mark = "🏆 " if r["w_name"] == r["a_name"] else ""
+        loser_mark  = "🏆 " if r["w_name"] == r["b_name"] else ""
+        map_info = f"맵: {r['map_name']}  |  "
+        upset_info = "  ⚡ 이변!" if r.get("is_upset") else ""
+
+        self.lbl_detail_a.setText(
+            f"{map_info}{winner_mark}{result['a']}{upset_info}"
+        )
+        self.lbl_detail_b.setText(f"{loser_mark}{result['b']}")
+        self.lbl_detail_a.setStyleSheet(
+            "color: #212529; font-size: 11px; background: transparent;"
+        )
+        self.lbl_detail_b.setStyleSheet(
+            "color: #212529; font-size: 11px; background: transparent;"
+        )
 
     def _fill_records(self):
         records = _load_player_records()
