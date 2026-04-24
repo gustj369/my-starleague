@@ -13,7 +13,7 @@ from ui.styles import RACE_COLORS, RACE_DISPLAY, GRADE_STYLE
 # ── 상수 ──────────────────────────────────────────────────────────
 # DB 저장값 / 탭 표시명 (인덱스 1:1 대응)
 RACES_DB      = ["전체", "테란",  "저그",  "프로토스"]
-RACES_DISPLAY = ["전체", "기동대", "공세대", "수호대"]
+RACES_DISPLAY = ["전체"] + [RACE_DISPLAY[race] for race in RACES_DB[1:]]
 
 COLS = ["순위", "선수명", "종족", "등급", "OVR", "경기", "승", "패", "승률", "랭킹점수"]
 COL_WIDTHS = [50, 110, 75, 55, 60, 55, 45, 45, 65, 80]
