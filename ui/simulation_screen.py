@@ -162,6 +162,7 @@ class SimulationScreen(QWidget):
         self._pending_strategy: str = "균형"
         self._pending_ai_strategy: str = "균형"
         self._prev_ai_strategy: str | None = None   # 직전 세트 AI 전략 (힌트용)
+        self._set_running: bool = False              # 세트 시뮬레이션 진행 중 플래그 (중복 입력 방지)
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -762,6 +763,7 @@ class SimulationScreen(QWidget):
                 "color: #868E96; font-size: 13px; font-weight: bold; background: transparent;"
             )
         self._pending_strategy = "균형"
+        self._set_running = False   # 새 세트 빌드 선택 시작 → 플래그 초기화
 
         # AI 전략 선택 — 성격 성향 + 직전 세트 기억
         STRATEGIES = ["초반집중", "균형", "후반체력전"]
@@ -808,6 +810,9 @@ class SimulationScreen(QWidget):
 
     # ── 전략 선택 처리 ───────────────────────────────────────
     def _on_strategy_picked(self, strategy: str):
+        # 이미 빌드까지 선택되어 세트가 진행 중이면 무시 (중복 입력 방지)
+        if self._set_running:
+            return
         self._pending_strategy = strategy
         # 전략 버튼 비활성화 + 선택된 것 강조
         for btn in self.strategy_btns:
@@ -844,8 +849,15 @@ class SimulationScreen(QWidget):
 
     # ── 빌드 선택 처리 ───────────────────────────────────────
     def _on_build_picked(self, build: str):
-        # 버튼 비활성화
+        # 이미 세트 진행 중이면 무시 (BUILD_REVEAL_DELAY 중 중복 클릭 방지)
+        if self._set_running:
+            return
+        self._set_running = True   # 즉시 플래그 세팅 — 이후 모든 입력 차단
+
+        # 빌드 버튼 + 전략 버튼 모두 비활성화
         for btn in self.build_btns:
+            btn.setEnabled(False)
+        for btn in self.strategy_btns:
             btn.setEnabled(False)
 
         self._pending_my_build = build
@@ -901,6 +913,9 @@ class SimulationScreen(QWidget):
 
     # ── 빌드 확정 후 세트 시뮬레이션 ────────────────────────
     def _run_set_after_build(self):
+        # _set_running이 False이면 이미 처리됐거나 비정상 경로 — 재진입 차단
+        if not self._set_running:
+            return
         # 중계 화면으로 전환
         self.mid_stack.setCurrentIndex(1)
         self._clear_commentary()
