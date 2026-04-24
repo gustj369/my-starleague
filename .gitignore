@@ -20,8 +20,9 @@ env/
 *.sqlite
 *.sqlite3
 
-# PyInstaller 빌드 결과물 (dist/, build/ 만 제외 — .spec은 버전 관리)
+# PyInstaller 빌드 결과물 (dist/, build/, dist_final/ 제외 — .spec은 버전 관리)
 dist/
+dist_final/
 build/
 
 # IDE / 에디터
