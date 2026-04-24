@@ -43,6 +43,15 @@ def main() -> int:
         in ranking_text,
         repr(expected_tabs),
     )
+    old_labels = ("기동대", "공세대", "수호대")
+    ui_files = [p for p in (ROOT / "ui").glob("*.py") if p.name != "styles.py"]
+    stale = [
+        f"{p.name}:{label}"
+        for p in ui_files
+        for label in old_labels
+        if label in p.read_text(encoding="utf-8")
+    ]
+    ok &= check("UI에 예전 종족 표시명 없음", not stale, ", ".join(stale))
 
     ok &= check(
         "종족 심볼 매핑",

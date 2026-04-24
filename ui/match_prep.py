@@ -563,9 +563,9 @@ class MatchPrepScreen(QWidget):
             return
         mp = self._maps[idx]
         bonuses = (
-            f"기동대 {mp['terran_bonus']:+d}  |  "
-            f"공세대 {mp['zerg_bonus']:+d}  |  "
-            f"수호대 {mp['protoss_bonus']:+d}"
+            f"{RACE_DISPLAY['테란']} {mp['terran_bonus']:+d}  |  "
+            f"{RACE_DISPLAY['저그']} {mp['zerg_bonus']:+d}  |  "
+            f"{RACE_DISPLAY['프로토스']} {mp['protoss_bonus']:+d}"
         )
         self.lbl_bonus.setText(f"보정:  {bonuses}")
 

@@ -66,7 +66,7 @@ class PlayerSelectScreen(QWidget):
         filter_row.addStretch()
         filter_row.addWidget(QLabel("종족:"))
         self.cmb_race = QComboBox()
-        self.cmb_race.addItems(["전체"] + list(RACE_DISPLAY.values()))  # 기동대/공세대/수호대
+        self.cmb_race.addItems(["전체"] + list(RACE_DISPLAY.values()))  # UI 표시명은 RACE_DISPLAY 기준
         self.cmb_race.currentTextChanged.connect(self._rebuild)
         filter_row.addWidget(self.cmb_race)
         filter_row.addSpacing(16)
