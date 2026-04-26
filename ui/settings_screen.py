@@ -113,6 +113,21 @@ class SettingsScreen(QWidget):
         root.addWidget(self.lbl_speed_cur)
         root.addSpacing(32)
         root.addWidget(make_separator())
+        root.addSpacing(24)
+
+        check_lbl = QLabel("수동 확인 체크리스트")
+        check_lbl.setStyleSheet(
+            "color: #5B6CF6; font-size: 15px; font-weight: bold; background: transparent;"
+        )
+        root.addWidget(check_lbl)
+        root.addSpacing(6)
+
+        check_desc = QLabel(
+            "코드 변경 후 기본 흐름을 손으로 확인할 때 참고하세요.\n"
+            "문서 위치: docs/manual-checklist.md"
+        )
+        check_desc.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
+        root.addWidget(check_desc)
         root.addStretch()
 
     def _on_speed_picked(self, key: str):
