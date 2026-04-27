@@ -106,4 +106,4 @@ api_key = os.getenv("ANTHROPIC_API_KEY", "")
 | 2026-04-26 | `909f44b` | P1: 경기 화면 중복 입력 방지 (`_set_running` 플래그) |
 | 2026-04-26 | `f366435` | 배포 전 품질 향상 패키지 v1.0.0 |
 | 2026-04-26 | `cb4bfa6` | 설정 화면 문서 링크 클릭 가능하도록 개선 (GitHub URL) |
-| 2026-04-26 | *(진행 중)* | .env 보안 규칙 문서화 + .gitignore 강화 + .env.example 추가 |
+| 2026-04-26 | `a5f569b` | .env 보안 규칙 문서화 + .gitignore 강화 + .env.example 추가 |
