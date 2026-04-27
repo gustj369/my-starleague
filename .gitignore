@@ -13,7 +13,10 @@ build/
 .venv/
 venv/
 env/
-.env
+
+# 환경 변수 / API 키 (모든 .env* 파일 차단, .env.example 은 허용)
+.env*
+!.env.example
 
 # SQLite DB (실행 시 자동 생성됨)
 *.db
