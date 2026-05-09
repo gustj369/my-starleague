@@ -1,8 +1,8 @@
 """밸런스 시스템 — 핸디캡 / 컨디션 / 피로도 / 라이벌 / 이변 보상"""
 import random
 from database.db import get_connection
+from core.utils import STAT_KEYS  # noqa: F401 — match.py 등 하위 임포트 경로 유지
 
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
 GRADE_ORDER = ["Super", "SS", "S", "A", "B", "C", "D", "E", "F"]
 
 # ── 컨디션 ────────────────────────────────────────────────────
@@ -183,14 +183,24 @@ def get_locked_map_id(player: dict, maps: list[dict]) -> int | None:
 
 
 # ── 라이벌 ────────────────────────────────────────────────────
-def get_rival_info(a_id: int, b_id: int) -> dict | None:
-    """두 선수 간 라이벌 정보 조회. 없으면 None"""
-    with get_connection() as conn:
-        row = conn.execute(
+def get_rival_info(a_id: int, b_id: int, _cur=None) -> dict | None:
+    """두 선수 간 라이벌 정보 조회. 없으면 None.
+
+    _cur: 공유 커서를 전달하면 별도 연결을 열지 않는다 (내부용).
+    """
+    if _cur is not None:
+        row = _cur.execute(
             """SELECT stat_bonus, extra_luck FROM rivals
                WHERE player_a_id = ? AND player_b_id = ?""",
             (a_id, b_id)
         ).fetchone()
+    else:
+        with get_connection() as conn:
+            row = conn.execute(
+                """SELECT stat_bonus, extra_luck FROM rivals
+                   WHERE player_a_id = ? AND player_b_id = ?""",
+                (a_id, b_id)
+            ).fetchone()
     if row:
         return {"stat_bonus": row["stat_bonus"], "extra_luck": row["extra_luck"]}
     return None

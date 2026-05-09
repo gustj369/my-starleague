@@ -3,12 +3,10 @@ from PyQt6.QtWidgets import QSplashScreen, QApplication
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QFont, QLinearGradient, QBrush
 from PyQt6.QtCore import Qt
 
-APP_VERSION = "v1.0.0"
-
-
-def show_splash(app: QApplication, duration_ms: int = 2400) -> QSplashScreen:
+def show_splash(app: QApplication, duration_ms: int = 2400, version: str = "v1.0.0") -> QSplashScreen:
     """스플래시 화면을 생성·표시하고 QSplashScreen 객체 반환.
     호출 측에서 메인 윈도우 show() 후 splash.finish(win)을 호출해야 함.
+    version: main.py 의 APP_VERSION 을 전달받아 표시 (중복 정의 방지).
     """
     W, H = 680, 400
     pm = QPixmap(W, H)
@@ -72,7 +70,7 @@ def show_splash(app: QApplication, duration_ms: int = 2400) -> QSplashScreen:
     p.setPen(QColor("#495057"))
     p.drawText(0, H - 28, W - 16, 24,
                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-               APP_VERSION)
+               version)
 
     # ── 하단 강조 라인 ──
     p.setBrush(QBrush(accent))

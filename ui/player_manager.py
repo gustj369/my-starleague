@@ -10,9 +10,7 @@ from database.db import get_connection
 from ui.widgets import RadarChart, StatBar, make_separator
 from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
 from ui.player_profile_dialog import PlayerProfileDialog
-
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.utils import STAT_KEYS, STAT_LABELS
 
 
 def _load_players() -> list[dict]:
@@ -111,7 +109,7 @@ class PlayerManagerScreen(QWidget):
         stat_lay.setContentsMargins(0, 0, 0, 0)
         stat_lay.setSpacing(4)
         self._stat_bars: dict[str, StatBar] = {}
-        for key, label in zip(STAT_KEYS, STAT_LABELS):
+        for key, label in STAT_LABELS.items():
             bar = StatBar(label, 0)
             self._stat_bars[key] = bar
             stat_lay.addWidget(bar)

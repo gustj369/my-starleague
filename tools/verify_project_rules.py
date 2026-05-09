@@ -24,6 +24,9 @@ def check(name: str, ok: bool, detail: str = ""):
 
 def main() -> int:
     ok = True
+    print("Legend League project rule check")
+    print("Checking grade, race display, save path, and build contract...")
+    print()
 
     ok &= check("95+ 등급은 Super", calc_grade(95) == "Super", calc_grade(95))
     ok &= check("90+ 등급은 SS", calc_grade(90) == "SS", calc_grade(90))
@@ -68,6 +71,11 @@ def main() -> int:
         spec_text = spec_path.read_text(encoding="utf-8")
         ok &= check("EXE 이름은 LegendLeague", "name='LegendLeague'" in spec_text)
 
+    print()
+    if ok:
+        print("All project rule checks passed.")
+    else:
+        print("Project rule check failed. Review the FAIL items above.")
     return 0 if ok else 1
 
 

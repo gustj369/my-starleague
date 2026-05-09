@@ -11,9 +11,7 @@ from core.balance import CONDITION_COLOR
 from ui.widgets import StatBar, make_separator
 from ui.styles import RACE_COLORS, GRADE_STYLE
 from core.player_data import get_win_quote, get_loss_quote
-
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.utils import STAT_KEYS, STAT_LABELS
 
 
 def _load_player(player_id: int) -> dict:
@@ -155,7 +153,7 @@ class ResultScreen(QWidget):
         lay.addWidget(growth_lbl)
         lay.addWidget(make_separator())
 
-        for key, label in zip(STAT_KEYS, STAT_LABELS):
+        for key, label in STAT_LABELS.items():
             bar = StatBar(label, 0)
             bar.setObjectName(f"bar_{slot}_{key}")
             lay.addWidget(bar)
@@ -299,17 +297,17 @@ class ResultScreen(QWidget):
         # 성장 하이라이트 요약
         growth_lbl = frame.findChild(QLabel, f"growth_{slot}")
         if growth_lbl:
-            ups   = [STAT_LABELS[i] for i, k in enumerate(STAT_KEYS) if delta.get(k, 0) > 0]
-            downs = [STAT_LABELS[i] for i, k in enumerate(STAT_KEYS) if delta.get(k, 0) < 0]
+            ups   = [STAT_LABELS[k] for k in STAT_KEYS if delta.get(k, 0) > 0]
+            downs = [STAT_LABELS[k] for k in STAT_KEYS if delta.get(k, 0) < 0]
             parts = []
             if ups:
                 parts.append("↑ " + "·".join(
-                    f"{STAT_LABELS[STAT_KEYS.index(k)]} +{delta[k]}"
+                    f"{STAT_LABELS[k]} +{delta[k]}"
                     for k in STAT_KEYS if delta.get(k, 0) > 0
                 ))
             if downs:
                 parts.append("↓ " + "·".join(
-                    f"{STAT_LABELS[STAT_KEYS.index(k)]} {delta[k]}"
+                    f"{STAT_LABELS[k]} {delta[k]}"
                     for k in STAT_KEYS if delta.get(k, 0) < 0
                 ))
             if parts:

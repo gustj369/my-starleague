@@ -1,7 +1,10 @@
 import sqlite3
 import os
 import sys
+import datetime
+import traceback
 from pathlib import Path
+from core.utils import _safe_int
 
 # ── 슬롯 시스템 ───────────────────────────────────────────────
 # EXE 환경: 세이브 파일을 AppData\Roaming\마이스타리그\saves\ 에 저장
@@ -42,6 +45,25 @@ def get_connection() -> sqlite3.Connection:
     # WAL 모드는 충돌 시 자동 롤백으로 DB 정합성을 보장함.
     conn.execute("PRAGMA journal_mode = WAL")
     return conn
+
+
+def _get_error_log_dir() -> Path:
+    if getattr(sys, 'frozen', False):
+        return Path(os.getenv('APPDATA', Path.home())) / '마이스타리그'
+    return Path(__file__).parent.parent / 'logs'
+
+
+def _log_db_error(context: str, exc: Exception):
+    """DB 보조 기능 실패는 게임을 막지 않고 로그만 남긴다."""
+    try:
+        log_dir = _get_error_log_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with open(log_dir / 'error.log', 'a', encoding='utf-8') as f:
+            f.write(f"\n[{datetime.datetime.now()}] {context}\n")
+            f.write("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
+            f.write("\n")
+    except Exception:
+        pass
 
 
 def init_db():
@@ -153,7 +175,8 @@ def init_db():
             status        TEXT    NOT NULL DEFAULT 'pending',
             sets_to_win   INTEGER NOT NULL DEFAULT 2,
             a_wins        INTEGER NOT NULL DEFAULT 0,
-            b_wins        INTEGER NOT NULL DEFAULT 0
+            b_wins        INTEGER NOT NULL DEFAULT 0,
+            is_upset      INTEGER NOT NULL DEFAULT 0
         );
     """)
 
@@ -185,6 +208,7 @@ def migrate_db():
         "ALTER TABLE tournament_matches ADD COLUMN sets_to_win INTEGER NOT NULL DEFAULT 2",
         "ALTER TABLE tournament_matches ADD COLUMN a_wins     INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE tournament_matches ADD COLUMN b_wins     INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tournament_matches ADD COLUMN is_upset   INTEGER NOT NULL DEFAULT 0",
     ]
 
     for sql in migrations:
@@ -241,6 +265,11 @@ def migrate_db():
             (key, name, desc, icon)
         )
 
+    # win_streak 키 초기화 (기존 세이브 파일 마이그레이션용)
+    cur.execute(
+        "INSERT OR IGNORE INTO game_state (key, value) VALUES ('win_streak', '0')"
+    )
+
     conn.commit()
     conn.close()
 
@@ -248,7 +277,7 @@ def migrate_db():
 def get_gold() -> int:
     with get_connection() as conn:
         row = conn.execute("SELECT value FROM game_state WHERE key='gold'").fetchone()
-        return int(row["value"]) if row else 500
+        return _safe_int(row["value"], 500) if row else 500
 
 
 def set_gold(amount: int):
@@ -277,7 +306,10 @@ def get_current_tournament_id() -> int | None:
         row = conn.execute(
             "SELECT value FROM game_state WHERE key='current_tournament_id'"
         ).fetchone()
-        return int(row["value"]) if row else None
+        if not row:
+            return None
+        tid = _safe_int(row["value"], 0)
+        return tid if tid > 0 else None
 
 
 def set_current_tournament_id(tid: int | None):
@@ -292,7 +324,6 @@ def set_current_tournament_id(tid: int | None):
         conn.commit()
 
 
-# 업적 우선순위 (높을수록 좋은 성적)
 _ACHIEVEMENT_RANK: dict[str, int] = {
     "우승":      5,
     "준우승":    4,
@@ -308,8 +339,8 @@ def get_game_summary() -> dict:
         rows = conn.execute("SELECT key, value FROM game_state").fetchall()
     data = {r["key"]: r["value"] for r in rows}
     return {
-        "gold": int(data.get("gold", 500)),
-        "total_tournaments": int(data.get("total_tournaments_played", 0)),
+        "gold": _safe_int(data.get("gold"), 500),
+        "total_tournaments": _safe_int(data.get("total_tournaments_played"), 0),
         "last_achievement": data.get("last_achievement", ""),
         "best_achievement": data.get("best_achievement", ""),
     }
@@ -383,7 +414,8 @@ def get_achievements() -> list[dict]:
                 "SELECT * FROM achievements ORDER BY earned DESC, key ASC"
             ).fetchall()
         return [dict(r) for r in rows]
-    except Exception:
+    except Exception as exc:
+        _log_db_error("get_achievements failed", exc)
         return []
 
 
@@ -403,7 +435,8 @@ def earn_achievement(key: str) -> str | None:
             )
             conn.commit()
             return row["name"]
-    except Exception:
+    except Exception as exc:
+        _log_db_error("earn_achievement failed", exc)
         return None
 
 
@@ -423,9 +456,21 @@ def check_and_earn_achievements(
             summary_rows = conn.execute(
                 "SELECT key, value FROM game_state"
             ).fetchall()
+            rival_wins = conn.execute("""
+                SELECT COUNT(*) FROM match_results mr
+                WHERE mr.winner_id = ?
+                AND EXISTS (
+                    SELECT 1 FROM rivals rv
+                    WHERE rv.player_a_id = ?
+                    AND rv.player_b_id = CASE
+                        WHEN mr.player_a_id = ? THEN mr.player_b_id
+                        ELSE mr.player_a_id END
+                )
+            """, (my_player_id, my_player_id, my_player_id)).fetchone()[0]
         summary = {r["key"]: r["value"] for r in summary_rows}
-        total = int(summary.get("total_tournaments_played", 0))
-        prev_win_count = int(summary.get("total_wins", "0"))
+        total = _safe_int(summary.get("total_tournaments_played"), 0)
+        prev_win_count = _safe_int(summary.get("total_wins"), 0)
+        prev_streak = _safe_int(summary.get("win_streak"), 0)  # 연속 우승 스트릭
 
         def _try(key: str):
             name = earn_achievement(key)
@@ -441,18 +486,31 @@ def check_and_earn_achievements(
             a, b = final_score
             if (a == 2 and b == 0) or (a == 3 and b == 0):
                 _try("perfect_final")
-            # 누적 우승 횟수
+            # 누적 우승 횟수 + 연속 스트릭 증가
             new_win_count = prev_win_count + 1
+            new_streak = prev_streak + 1
             with get_connection() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO game_state (key,value) VALUES ('total_wins',?)",
                     (str(new_win_count),)
                 )
+                conn.execute(
+                    "INSERT OR REPLACE INTO game_state (key,value) VALUES ('win_streak',?)",
+                    (str(new_streak),)
+                )
                 conn.commit()
             if new_win_count >= 3:
                 _try("triple_crown")
-            if new_win_count >= 2:
+            if new_streak >= 2:          # BUG FIX: 통산 2회 → 연속 2회 기준으로 수정
                 _try("consecutive_2")
+        else:
+            # 비우승 시 연속 스트릭 리셋 (스트릭이 있을 때만 DB 기록)
+            if prev_streak > 0:
+                with get_connection() as conn:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO game_state (key,value) VALUES ('win_streak','0')"
+                    )
+                    conn.commit()
 
         if total >= 5:
             _try("veteran_5")
@@ -460,30 +518,18 @@ def check_and_earn_achievements(
             _try("veteran_10")
 
         # 골드 기반
-        gold = int(summary.get("gold", 0))
+        gold = _safe_int(summary.get("gold"), 0)
         if gold >= 3000:
             _try("gold_3000")
         if gold >= 5000:
             _try("gold_master")
 
-        # 라이벌전 승리 카운트
-        with get_connection() as conn:
-            rival_wins = conn.execute("""
-                SELECT COUNT(*) FROM match_results mr
-                WHERE mr.winner_id = ?
-                AND EXISTS (
-                    SELECT 1 FROM rivals rv
-                    WHERE rv.player_a_id = ?
-                    AND rv.player_b_id = CASE
-                        WHEN mr.player_a_id = ? THEN mr.player_b_id
-                        ELSE mr.player_a_id END
-                )
-            """, (my_player_id, my_player_id, my_player_id)).fetchone()[0]
+        # 라이벌전 승리 카운트 (첫 연결에서 이미 조회됨)
         if rival_wins >= 5:
             _try("rival_slayer")
 
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_db_error("check_and_earn_achievements failed", exc)
 
     return newly_earned
 
@@ -528,7 +574,7 @@ def get_sponsor_mission() -> dict | None:
             return None
         return {
             "desc":    data.get("sponsor_desc", ""),
-            "reward":  int(data.get("sponsor_reward", 0)),
+            "reward":  _safe_int(data.get("sponsor_reward"), 0),
             "targets": data.get("sponsor_targets", "").split(","),
         }
     except Exception:
@@ -558,7 +604,7 @@ def save_tournament_result(achievement: str, gold_earned: int):
         cur_count_row = conn.execute(
             "SELECT value FROM game_state WHERE key='total_tournaments_played'"
         ).fetchone()
-        cur_count = int(cur_count_row["value"]) if cur_count_row else 0
+        cur_count = _safe_int(cur_count_row["value"], 0) if cur_count_row else 0
 
         conn.execute(
             "INSERT OR REPLACE INTO game_state (key, value) VALUES ('last_achievement', ?)",

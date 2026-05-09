@@ -1,5 +1,7 @@
 from database.db import get_connection, init_db
 from core.grade import calc_overall, calc_grade
+from core.utils import _safe_int
+
 
 # PRD v6: 저작권 문제로 전체 캐릭터를 새 이름으로 교체
 # 이미지 파일: ../image/{이름}.png
@@ -113,7 +115,7 @@ def seed():
     version_row = cur.execute(
         "SELECT value FROM game_state WHERE key='db_version'"
     ).fetchone()
-    current_version = int(version_row[0]) if version_row else 0
+    current_version = _safe_int(version_row[0], 0) if version_row else 0
 
     if current_version < DB_VERSION:
         # 전체 데이터 초기화 (캐릭터 교체로 인한 마이그레이션)

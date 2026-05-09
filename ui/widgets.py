@@ -55,8 +55,7 @@ def make_player_avatar(name: str, size: int = 90, race: str = "") -> QLabel:
         )
     return lbl
 
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
+from core.utils import STAT_KEYS, STAT_LABELS
 
 
 class RadarChart(QWidget):
@@ -123,7 +122,7 @@ class RadarChart(QWidget):
         font = QFont("맑은 고딕", 8)
         p.setFont(font)
         label_r = r + 16
-        for i, label in enumerate(STAT_LABELS):
+        for i, label in enumerate(STAT_LABELS.values()):
             a = angles[i]
             lx = cx + label_r * math.cos(a) - 16
             ly = cy - label_r * math.sin(a) - 8

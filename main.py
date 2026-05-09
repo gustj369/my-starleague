@@ -1,8 +1,13 @@
 """마이 스타리그 — 앱 진입점 (PRD v9)"""
+import json
 import sys
 import os
+from enum import IntEnum
 
 APP_VERSION = "v1.0.0"
+TOURNAMENT_START_SNAPSHOT_KEY = "tournament_start_player_snapshot"
+TOURNAMENT_START_GOLD_KEY = "tournament_start_gold"
+TOURNAMENT_HAD_UPSET_KEY = "tournament_had_upset"
 
 if getattr(sys, "frozen", False):
     BASE_DIR = sys._MEIPASS
@@ -55,21 +60,22 @@ from ui.settings_screen import SettingsScreen
 from ui.achievements_screen import AchievementsScreen
 from ui.splash_screen import show_splash
 
-# 화면 인덱스
-IDX_SLOT         = 0   # 슬롯 선택 (시작 화면)
-IDX_MENU         = 1
-IDX_SELECT       = 2
-IDX_BRACKET      = 3
-IDX_PREP         = 4
-IDX_SIMULATION   = 5
-IDX_RESULT       = 6
-IDX_FINAL        = 7
-IDX_PLAYERS      = 8
-IDX_SHOP         = 9
-IDX_HISTORY      = 10
-IDX_RANKING      = 11
-IDX_SETTINGS     = 12
-IDX_ACHIEVEMENTS = 13
+# 화면 인덱스 (IntEnum: 정수 연산·비교 완전 호환, 오타/순서 오류 방지)
+class Screen(IntEnum):
+    SLOT         = 0   # 슬롯 선택 (시작 화면)
+    MENU         = 1
+    SELECT       = 2
+    BRACKET      = 3
+    PREP         = 4
+    SIMULATION   = 5
+    RESULT       = 6
+    FINAL        = 7
+    PLAYERS      = 8
+    SHOP         = 9
+    HISTORY      = 10
+    RANKING      = 11
+    SETTINGS     = 12
+    ACHIEVEMENTS = 13
 
 
 class NavBar(QWidget):
@@ -90,7 +96,7 @@ class NavBar(QWidget):
         lay.addWidget(logo)
         lay.addStretch()
 
-        self.lbl_gold = QLabel("Gold: 0 G")
+        self.lbl_gold = QLabel("💰 0 G")
         self.lbl_gold.setStyleSheet(
             "color: #F59E0B; font-size: 12px; background: transparent;"
         )
@@ -99,11 +105,11 @@ class NavBar(QWidget):
 
         self._nav_cb = None
         for label, idx in [
-            ("선수 관리", IDX_PLAYERS),
-            ("아이템 상점", IDX_SHOP),
-            ("대결 기록", IDX_HISTORY),
-            ("선수 랭킹", IDX_RANKING),
-            ("🏆 도전과제", IDX_ACHIEVEMENTS),
+            ("선수 관리", Screen.PLAYERS),
+            ("아이템 상점", Screen.SHOP),
+            ("대결 기록", Screen.HISTORY),
+            ("선수 랭킹", Screen.RANKING),
+            ("🏆 도전과제", Screen.ACHIEVEMENTS),
         ]:
             btn = QPushButton(label)
             btn.setFixedHeight(30)
@@ -132,7 +138,7 @@ class NavBar(QWidget):
             QPushButton:hover { color: #5B6CF6; border-color: #5B6CF6; background: #EEF2FF; }
         """)
         self.btn_settings.clicked.connect(
-            lambda: self._nav_cb and self._nav_cb(IDX_SETTINGS)
+            lambda: self._nav_cb and self._nav_cb(Screen.SETTINGS)
         )
         lay.addWidget(self.btn_settings)
 
@@ -158,7 +164,7 @@ class NavBar(QWidget):
         self._help_cb = cb
 
     def update_gold(self):
-        self.lbl_gold.setText(f"Gold: {get_gold()} G")
+        self.lbl_gold.setText(f"💰 {get_gold():,} G")
 
 
 class MainWindow(QMainWindow):
@@ -214,14 +220,15 @@ class MainWindow(QMainWindow):
         self.s_menu.sig_back.connect(self._to_slot_select)
         self.s_menu.sig_exit.connect(self.close)
 
+
         self.s_select.sig_confirm.connect(self._on_player_selected)
-        self.s_select.sig_back.connect(lambda: self._go(IDX_MENU))
+        self.s_select.sig_back.connect(lambda: self._go(Screen.MENU))
 
         self.s_bracket.sig_prep_match.connect(self._on_prep_match)
-        self.s_bracket.sig_back.connect(lambda: self._go(IDX_MENU))
+        self.s_bracket.sig_back.connect(lambda: self._go(Screen.MENU))
 
         self.s_prep.sig_start.connect(self._on_match_start)
-        self.s_prep.sig_back.connect(lambda: self._go(IDX_BRACKET))
+        self.s_prep.sig_back.connect(lambda: self._go(Screen.BRACKET))
 
         self.s_simulation.sig_match_done.connect(self._on_simulation_done)
 
@@ -244,7 +251,7 @@ class MainWindow(QMainWindow):
         self._snap_b: dict | None = None
         self._gold_at_start: int = 0
         self._player_snap_start: dict | None = None
-        self._pre_nav_idx: int = IDX_BRACKET
+        self._pre_nav_idx: int = Screen.BRACKET
         self._pending_tm_id: int = 0
         self._pending_round: str = ""
         self._had_upset_this_tournament: bool = False
@@ -263,7 +270,7 @@ class MainWindow(QMainWindow):
 
         self.navbar.setVisible(False)
         self.navbar.set_help_callback(self._show_help)
-        self.stack.setCurrentIndex(IDX_SLOT)  # 첫 화면은 직접 세팅 (fade 없음)
+        self.stack.setCurrentIndex(Screen.SLOT)  # 첫 화면은 직접 세팅 (fade 없음)
 
     # ── 화면 전환 ──────────────────────────────────────────────
     def _go(self, idx: int):
@@ -275,7 +282,7 @@ class MainWindow(QMainWindow):
         self._fade_anim.setStartValue(1.0)
         self._fade_anim.setEndValue(0.0)
         self._fade_anim.start()
-        if idx not in (IDX_SLOT,):
+        if idx not in (Screen.SLOT,):
             self.navbar.update_gold()
 
     def _on_fade_done(self):
@@ -292,8 +299,8 @@ class MainWindow(QMainWindow):
 
     # 내비게이션 서브 화면 인덱스 집합 (이 화면에서 누르면 _pre_nav_idx 갱신 X)
     _NAV_SCREENS = frozenset({
-        IDX_PLAYERS, IDX_SHOP, IDX_HISTORY, IDX_RANKING,
-        IDX_SETTINGS, IDX_ACHIEVEMENTS,
+        Screen.PLAYERS, Screen.SHOP, Screen.HISTORY, Screen.RANKING,
+        Screen.SETTINGS, Screen.ACHIEVEMENTS,
     })
 
     def _nav_to(self, idx: int):
@@ -301,17 +308,17 @@ class MainWindow(QMainWindow):
         # 게임 화면(브라켓 등)일 때만 저장 — 이미 서브 화면이면 덮어쓰지 않음
         if current not in self._NAV_SCREENS:
             self._pre_nav_idx = current
-        if idx == IDX_PLAYERS:
+        if idx == Screen.PLAYERS:
             self.s_players.refresh()
-        elif idx == IDX_SHOP:
+        elif idx == Screen.SHOP:
             self.s_shop.refresh()
-        elif idx == IDX_HISTORY:
+        elif idx == Screen.HISTORY:
             self.s_history.refresh()
-        elif idx == IDX_RANKING:
+        elif idx == Screen.RANKING:
             self.s_ranking.refresh()
-        elif idx == IDX_SETTINGS:
+        elif idx == Screen.SETTINGS:
             self.s_settings.refresh()
-        elif idx == IDX_ACHIEVEMENTS:
+        elif idx == Screen.ACHIEVEMENTS:
             self.s_achievements.refresh()
         self._go(idx)
 
@@ -326,7 +333,7 @@ class MainWindow(QMainWindow):
     def _to_slot_select(self):
         self.navbar.setVisible(False)
         self.s_slot.refresh()
-        self._go(IDX_SLOT)
+        self._go(Screen.SLOT)
 
     # ── 슬롯 선택 ────────────────────────────────────────────
     def _on_slot_new_game(self, slot_idx: int):
@@ -341,7 +348,7 @@ class MainWindow(QMainWindow):
         dlg = OnboardingDialog(self)
         dlg.exec()
         self.s_select.refresh()
-        self._go(IDX_SELECT)
+        self._go(Screen.SELECT)
 
     def _on_slot_continue(self, slot_idx: int):
         """기존 슬롯 불러오기 → 진행 중이면 대진표, 아니면 메인 메뉴"""
@@ -355,15 +362,17 @@ class MainWindow(QMainWindow):
         if tid:
             t = get_tournament(tid)
             if t and t['status'] == '진행중':
-                self._tid   = tid
-                self._my_id = t['my_player_id']
-                self.s_bracket.load_tournament(self._tid, self._my_id)
-                self._go(IDX_BRACKET)
+                self._restore_active_tournament_context(tid, t['my_player_id'])
+                if not is_my_player_alive(self._tid) or is_round_complete(self._tid):
+                    self._on_result_continue()
+                else:
+                    self.s_bracket.load_tournament(self._tid, self._my_id)
+                    self._go(Screen.BRACKET)
                 return
 
         # 진행 중 토너먼트 없음 → 메인 메뉴로
         self.s_menu.refresh()
-        self._go(IDX_MENU)
+        self._go(Screen.MENU)
 
     # ── 메인 메뉴 ──────────────────────────────────────────────
     def _new_tournament(self):
@@ -374,33 +383,135 @@ class MainWindow(QMainWindow):
         dlg = SeasonNewsDialog(events, self)
         dlg.exec()
         self.s_select.refresh()
-        self._go(IDX_SELECT)
+        self._go(Screen.SELECT)
 
     def _load_game(self):
         tid = get_current_tournament_id()
         if tid:
             t = get_tournament(tid)
             if t and t['status'] == '진행중':
-                self._tid   = tid
-                self._my_id = t['my_player_id']
-                self.s_bracket.load_tournament(self._tid, self._my_id)
-                self._go(IDX_BRACKET)
+                self._restore_active_tournament_context(tid, t['my_player_id'])
+                if not is_my_player_alive(self._tid) or is_round_complete(self._tid):
+                    self._on_result_continue()
+                else:
+                    self.s_bracket.load_tournament(self._tid, self._my_id)
+                    self._go(Screen.BRACKET)
                 return
         # 진행 중 토너먼트 없음 → 선수 선택
         self.s_select.refresh()
-        self._go(IDX_SELECT)
+        self._go(Screen.SELECT)
 
     # ── 선수 선택 → 토너먼트 생성 ─────────────────────────────
+    def _restore_active_tournament_context(self, tid: int, my_player_id: int):
+        self._tid = tid
+        self._my_id = my_player_id
+        data, fallback_snap, final, had_upset = self._load_tournament_restore_data(
+            tid, my_player_id
+        )
+
+        self._player_snap_start = self._restore_player_start_snapshot(
+            data, fallback_snap
+        )
+        self._gold_at_start = self._restore_tournament_start_gold(data)
+        self._had_upset_this_tournament = self._restore_tournament_had_upset(
+            data, had_upset
+        )
+        self._restore_final_score(final, my_player_id)
+
+    def _load_tournament_restore_data(self, tid: int, my_player_id: int):
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT key, value FROM game_state WHERE key IN (?,?,?)",
+                (
+                    TOURNAMENT_START_SNAPSHOT_KEY,
+                    TOURNAMENT_START_GOLD_KEY,
+                    TOURNAMENT_HAD_UPSET_KEY,
+                ),
+            ).fetchall()
+            data = {row["key"]: row["value"] for row in rows}
+            row = conn.execute(
+                "SELECT * FROM players WHERE id=?", (my_player_id,)
+            ).fetchone()
+            fallback_snap = dict(row) if row else {}
+            final = conn.execute(
+                """SELECT player_a_id, player_b_id, a_wins, b_wins
+                   FROM tournament_matches
+                   WHERE tournament_id=? AND round=? AND is_my_match=1
+                     AND status='completed'
+                   ORDER BY id DESC LIMIT 1""",
+                (tid, ROUNDS[-1]),
+            ).fetchone()
+            had_upset = conn.execute(
+                """SELECT 1 FROM tournament_matches
+                   WHERE tournament_id=? AND is_my_match=1
+                     AND status='completed' AND is_upset=1
+                   LIMIT 1""",
+                (tid,),
+            ).fetchone()
+        return data, fallback_snap, final, had_upset
+
+    def _restore_player_start_snapshot(self, data: dict, fallback_snap: dict) -> dict:
+        try:
+            snap = json.loads(data.get(TOURNAMENT_START_SNAPSHOT_KEY, ""))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return fallback_snap
+        return snap if isinstance(snap, dict) else fallback_snap
+
+    def _restore_tournament_start_gold(self, data: dict) -> int:
+        try:
+            return int(data.get(TOURNAMENT_START_GOLD_KEY, get_gold()))
+        except (TypeError, ValueError):
+            return get_gold()
+
+    def _restore_tournament_had_upset(self, data: dict, had_upset) -> bool:
+        value = str(data.get(TOURNAMENT_HAD_UPSET_KEY, "")).strip().lower()
+        return value in ("1", "true", "yes") or had_upset is not None
+
+    def _restore_final_score(self, final, my_player_id: int):
+        self._final_a_wins = 0
+        self._final_b_wins = 0
+        if final:
+            if final["player_a_id"] == my_player_id:
+                self._final_a_wins = final["a_wins"]
+                self._final_b_wins = final["b_wins"]
+            else:
+                self._final_a_wins = final["b_wins"]
+                self._final_b_wins = final["a_wins"]
+
+    def _save_tournament_start_context(self):
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO game_state (key, value) VALUES (?, ?)",
+                (TOURNAMENT_START_SNAPSHOT_KEY, json.dumps(self._player_snap_start)),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO game_state (key, value) VALUES (?, ?)",
+                (TOURNAMENT_START_GOLD_KEY, str(self._gold_at_start)),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO game_state (key, value) VALUES (?, '0')",
+                (TOURNAMENT_HAD_UPSET_KEY,),
+            )
+            conn.commit()
+
+    def _save_tournament_upset_state(self):
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO game_state (key, value) VALUES (?, ?)",
+                (TOURNAMENT_HAD_UPSET_KEY, "1" if self._had_upset_this_tournament else "0"),
+            )
+            conn.commit()
+
     def _on_player_selected(self, my_id: int):
         self._my_id = my_id
         with get_connection() as conn:
-            self._player_snap_start = dict(
-                conn.execute("SELECT * FROM players WHERE id=?", (my_id,)).fetchone()
-            )
+            row = conn.execute("SELECT * FROM players WHERE id=?", (my_id,)).fetchone()
+            self._player_snap_start = dict(row) if row else {}
         self._gold_at_start = get_gold()
         self._had_upset_this_tournament = False
         self._final_a_wins = 0
         self._final_b_wins = 0
+        self._save_tournament_start_context()
         self._tid = create_tournament(my_id)
         apply_pending_fatigue_events()
 
@@ -414,7 +525,7 @@ class MainWindow(QMainWindow):
             )
 
         self.s_bracket.load_tournament(self._tid, self._my_id)
-        self._go(IDX_BRACKET)
+        self._go(Screen.BRACKET)
 
     # ── 경기 준비 ──────────────────────────────────────────────
     def _on_prep_match(self):
@@ -426,7 +537,7 @@ class MainWindow(QMainWindow):
         self._pending_tm_id = m['id']
         self._pending_round = t['current_round']
         self.s_prep.load_match(self._my_id, opp_id, m['id'], t['current_round'])
-        self._go(IDX_PREP)
+        self._go(Screen.PREP)
 
     # ── match_prep → simulation ───────────────────────────────
     def _on_match_start(self, my_id: int, opp_id: int, map_id: int,
@@ -443,26 +554,28 @@ class MainWindow(QMainWindow):
         self.s_simulation.load_match(
             my_id, opp_id, map_id, my_condition, tm_id, round_name
         )
-        self._go(IDX_SIMULATION)
+        self._go(Screen.SIMULATION)
 
     # ── simulation → result ───────────────────────────────────
     def _on_simulation_done(self, outcome):
         my_id = self._my_id
-        tm_id = self.s_simulation._tm_id
-        round_name = self.s_simulation._round_name
+        tm_id = self.s_simulation.tm_id
+        round_name = self.s_simulation.round_name
 
         complete_my_match(
             tm_id, outcome.winner_id,
-            self.s_simulation._map_id,
+            self.s_simulation.map_id,
             round_name=round_name,
             my_player_id=my_id,
             a_wins=outcome.a_wins,
             b_wins=outcome.b_wins,
+            is_upset=outcome.is_upset,
         )
 
         # 이변 발생 여부 추적
         if outcome.is_upset:
             self._had_upset_this_tournament = True
+            self._save_tournament_upset_state()
 
         # 결승전 스코어 기록 (완벽한 결승 업적용)
         is_my_win = (outcome.winner_id == my_id)
@@ -479,12 +592,12 @@ class MainWindow(QMainWindow):
         )
         self.s_result.show_result(outcome, self._snap_a, self._snap_b)
         self.navbar.update_gold()
-        self._go(IDX_RESULT)
+        self._go(Screen.RESULT)
 
     # ── 결과 → 다음 단계 ──────────────────────────────────────
     def _on_result_continue(self):
         if self._tid is None:
-            self._go(IDX_BRACKET)
+            self._go(Screen.BRACKET)
             return
 
         if not is_my_player_alive(self._tid):
@@ -499,17 +612,11 @@ class MainWindow(QMainWindow):
 
         self.s_bracket.load_tournament(self._tid, self._my_id)
         self.navbar.update_gold()
-        self._go(IDX_BRACKET)
+        self._go(Screen.BRACKET)
 
     # ── 최종 결과 ─────────────────────────────────────────────
     def _show_final(self):
         achievement = get_elimination_round(self._tid)
-        gold_earned = get_gold() - self._gold_at_start
-        self.s_final.show_result(
-            achievement, self._my_id, self._player_snap_start, gold_earned,
-            tournament_id=self._tid
-        )
-        save_tournament_result(achievement, gold_earned)
 
         # 스폰서 미션 결과 처리
         sponsor_reward = check_sponsor_mission(
@@ -522,6 +629,19 @@ class MainWindow(QMainWindow):
                 f"미션을 성공했습니다!\n보상 +{sponsor_reward} G 획득!"
             )
             self.navbar.update_gold()
+
+        growth = []
+        if self._my_id:
+            growth = generate_growth_event(self._my_id, achievement)
+            apply_growth_event(self._my_id, growth)
+
+        gold_earned = get_gold() - self._gold_at_start
+        self.s_final.show_result(
+            achievement, self._my_id, self._player_snap_start, gold_earned,
+            tournament_id=self._tid
+        )
+        self.s_final.show_growth(growth)
+        save_tournament_result(achievement, gold_earned)
 
         # 도전과제 확인
         if self._my_id:
@@ -541,29 +661,24 @@ class MainWindow(QMainWindow):
                     f"새로운 도전과제를 달성했습니다!\n\n{msg}"
                 )
 
-        # 성장 이벤트 생성·적용·표시
-        if self._my_id:
-            growth = generate_growth_event(self._my_id, achievement)
-            apply_growth_event(self._my_id, growth)
-            self.s_final.show_growth(growth)
-
         set_current_tournament_id(None)
         self.s_menu.refresh()
-        self._go(IDX_FINAL)
+        self.navbar.update_gold()  # 스폰서 보상·성장 이벤트 후 최종 골드 갱신 보장
+        self._go(Screen.FINAL)
 
     # ── 다시 시작 ─────────────────────────────────────────────
     def _restart(self):
         self._tid   = None
         self._my_id = None
         self.s_menu.refresh()
-        self._go(IDX_MENU)
+        self._go(Screen.MENU)
 
     # ── 종료 확인 다이얼로그 ──────────────────────────────────
     def closeEvent(self, event):
         """경기 진행 중일 때 종료 전 확인 다이얼로그 표시."""
         current_idx = self.stack.currentIndex()
         # 슬롯 선택·메인 메뉴·최종 결과·설정·업적 화면은 즉시 종료 허용
-        if current_idx in (IDX_SLOT, IDX_MENU, IDX_FINAL, IDX_SETTINGS, IDX_ACHIEVEMENTS):
+        if current_idx in (Screen.SLOT, Screen.MENU, Screen.FINAL, Screen.SETTINGS, Screen.ACHIEVEMENTS):
             event.accept()
             return
         reply = QMessageBox.question(
@@ -618,8 +733,8 @@ def main():
         load_fonts()   # Press Start 2P, Orbitron 등록
         app.setStyleSheet(MAIN_QSS)
 
-        # 스플래시 화면 표시
-        splash = show_splash(app)
+        # 스플래시 화면 표시 (APP_VERSION 전달 — splash_screen.py 에 중복 정의 없음)
+        splash = show_splash(app, version=APP_VERSION)
 
         win = MainWindow()
         win.show()

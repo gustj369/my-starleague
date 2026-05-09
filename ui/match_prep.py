@@ -12,10 +12,8 @@ from core.balance import (
 )
 from ui.widgets import StatBar, RadarChart, make_separator, make_player_avatar, get_player_image_path
 from ui.styles import RACE_COLORS, RACE_DISPLAY, GRADE_STYLE
-from core.player_data import get_pre_match_quote, get_style
-
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.player_data import get_pre_match_quote, get_style, get_ai_style
+from core.utils import STAT_KEYS, STAT_LABELS
 RACE_BONUS  = {"테란": "terran_bonus", "저그": "zerg_bonus", "프로토스": "protoss_bonus"}
 
 
@@ -104,6 +102,13 @@ class MatchPrepScreen(QWidget):
         self.lbl_quote.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_quote.setStyleSheet(
             "color: #212529; font-size: 13px; font-style: italic; background: transparent;"
+        )
+        self.lbl_opp_hint = QLabel("")
+        self.lbl_opp_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_opp_hint.setWordWrap(True)
+        self.lbl_opp_hint.setStyleSheet(
+            "color: #495057; font-size: 12px; background: #F8F9FA; "
+            "border: 1px solid #E9ECEF; border-radius: 5px; padding: 5px 10px;"
         )
 
         # 컨디션 + 피로도 행
@@ -231,6 +236,7 @@ class MatchPrepScreen(QWidget):
         root.addWidget(self.lbl_rival)
         root.addWidget(self.lbl_gap_warning)
         root.addWidget(self.lbl_quote)
+        root.addWidget(self.lbl_opp_hint)
         root.addLayout(status_row)
         root.addLayout(map_row)
         root.addWidget(make_separator())
@@ -292,7 +298,7 @@ class MatchPrepScreen(QWidget):
         sf_lay = QVBoxLayout(stat_frame)
         sf_lay.setContentsMargins(0, 0, 0, 0)
         sf_lay.setSpacing(3)
-        for key, lbl in zip(STAT_KEYS, STAT_LABELS):
+        for key, lbl in STAT_LABELS.items():
             bar = StatBar(lbl, 0)
             bar.setObjectName(f"bar_{slot}_{key}")
             sf_lay.addWidget(bar)
@@ -342,6 +348,7 @@ class MatchPrepScreen(QWidget):
             self.lbl_quote.setText(f'"{quote}"')
         else:
             self.lbl_quote.setText("")
+        self.lbl_opp_hint.setText(self._build_opp_hint())
 
         # 컨디션 롤
         self._my_condition = roll_condition(self._my["grade"])
@@ -461,6 +468,46 @@ class MatchPrepScreen(QWidget):
         # 이전 경기 시작 후 btn_start가 False 상태로 남아 다음 라운드에서
         # 버튼이 영구 비활성화되는 버그 수정.
         self.btn_start.setEnabled(True)
+
+    def _build_opp_hint(self) -> str:
+        if not self._my or not self._opp:
+            return ""
+
+        parts = []
+        opp_name = self._opp["name"]
+        style = get_style(opp_name)
+        ai_style = get_ai_style(opp_name)
+        if style:
+            parts.append(f"성향 {style}")
+        else:
+            parts.append(f"전략 성향 {ai_style}")
+
+        from core.balance import GRADE_ORDER
+        try:
+            my_idx = GRADE_ORDER.index(self._my["grade"])
+            opp_idx = GRADE_ORDER.index(self._opp["grade"])
+            gap = abs(my_idx - opp_idx)
+            if opp_idx < my_idx:
+                parts.append(f"상대 등급 우위 {gap}단계")
+            elif opp_idx > my_idx:
+                parts.append(f"상대 등급 열세 {gap}단계")
+            else:
+                parts.append("동급 매치")
+        except ValueError:
+            pass
+
+        opp_fatigue = self._opp.get("fatigue", 0)
+        if opp_fatigue >= 80:
+            parts.append("상대 피로 심각")
+        elif opp_fatigue >= 60:
+            parts.append("상대 피로 누적")
+        elif opp_fatigue <= 30:
+            parts.append("상대 체력 여유")
+
+        if is_rival(self._my["id"], self._opp["id"]):
+            parts.append("라이벌전 변동성 큼")
+
+        return "상대 힌트: " + "  |  ".join(parts)
 
     def _update_condition_display(self):
         color = CONDITION_COLOR.get(self._my_condition, "#212529")

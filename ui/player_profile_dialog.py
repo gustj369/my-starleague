@@ -9,9 +9,7 @@ from database.db import get_connection
 from ui.widgets import get_player_image_path, make_separator
 from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
 from core.player_data import PLAYER_DATA
-
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.utils import STAT_KEYS
 
 
 def _load_stats(player_id: int) -> dict:

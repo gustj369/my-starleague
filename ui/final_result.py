@@ -9,9 +9,7 @@ from PyQt6.QtGui import QColor
 from database.db import get_connection, get_gold
 from ui.widgets import make_separator
 from ui.styles import GRADE_STYLE, RACE_COLORS, RACE_DISPLAY
-
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.utils import STAT_KEYS, STAT_LABELS
 
 ACHIEVEMENT_COLOR = {
     "우승":     "#F59E0B",
@@ -47,6 +45,13 @@ class FinalResultScreen(QWidget):
         self.lbl_player.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_player.setStyleSheet(
             "color: #868E96; font-size: 18px; background: transparent;"
+        )
+        self.lbl_summary = QLabel("")
+        self.lbl_summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_summary.setWordWrap(True)
+        self.lbl_summary.setStyleSheet(
+            "color: #495057; font-size: 13px; font-weight: bold; background: #F8F9FA; "
+            "border: 1px solid #E9ECEF; border-radius: 6px; padding: 7px 12px;"
         )
 
         # 능력치 비교 테이블
@@ -120,6 +125,7 @@ class FinalResultScreen(QWidget):
 
         root.addWidget(self.lbl_achieve)
         root.addWidget(self.lbl_player)
+        root.addWidget(self.lbl_summary)
         root.addWidget(make_separator())
         root.addWidget(path_lbl_title)
         root.addWidget(self.lbl_path)
@@ -176,10 +182,11 @@ class FinalResultScreen(QWidget):
         self.lbl_player.setStyleSheet(
             f"color: {race_color}; font-size: 18px; background: transparent;"
         )
+        self.lbl_summary.setText(self._build_summary(achievement, snap_before, now, gold_earned))
 
         # 능력치 비교 테이블
         self.table.setRowCount(len(STAT_KEYS) + 2)
-        for i, (key, lbl) in enumerate(zip(STAT_KEYS, STAT_LABELS)):
+        for i, (key, lbl) in enumerate(STAT_LABELS.items()):
             before = snap_before.get(key, 0)
             after  = now[key]
             delta  = after - before
@@ -228,7 +235,7 @@ class FinalResultScreen(QWidget):
 
         # 골드
         self.lbl_gold.setText(
-            f"토너먼트 획득 골드: +{gold_earned} G    |    최종 보유: {get_gold()} G"
+            f"최종 반영 골드: +{gold_earned} G    |    현재 보유: {get_gold()} G"
         )
 
         # 토너먼트 경로
@@ -249,6 +256,16 @@ class FinalResultScreen(QWidget):
             self._timer.timeout.connect(self._flash_fn)
             self._timer.start(80)
             QTimer.singleShot(4000, self._timer.stop)
+
+    def _build_summary(self, achievement: str, before: dict, now: dict, gold_earned: int) -> str:
+        before_ovr = before.get("overall", 0)
+        after_ovr = now.get("overall", 0)
+        ovr_delta = round(after_ovr - before_ovr, 1)
+        grade_before = before.get("grade", "?")
+        grade_after = now.get("grade", "?")
+        grade_text = f"{grade_before}→{grade_after}" if grade_before != grade_after else grade_after
+        delta_text = f"+{ovr_delta:.1f}" if ovr_delta >= 0 else f"{ovr_delta:.1f}"
+        return f"요약: {achievement}  |  최종 +{gold_earned} G  |  OVR {delta_text}  |  등급 {grade_text}"
 
     def _flash_fn(self):
         self._flash += self._fd * 8

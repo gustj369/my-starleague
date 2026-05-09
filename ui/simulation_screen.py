@@ -163,6 +163,21 @@ class SimulationScreen(QWidget):
         self._pending_ai_strategy: str = "균형"
         self._prev_ai_strategy: str | None = None   # 직전 세트 AI 전략 (힌트용)
         self._set_running: bool = False              # 세트 시뮬레이션 진행 중 플래그 (중복 입력 방지)
+        self._set_result_scheduled: bool = False
+        self._set_result_visible: bool = False
+
+    # ── 공개 읽기 전용 프로퍼티 (main.py에서 접근) ───────────
+    @property
+    def tm_id(self) -> int:
+        return self._tm_id
+
+    @property
+    def round_name(self) -> str:
+        return self._round_name
+
+    @property
+    def map_id(self) -> int:
+        return self._map_id
 
     # ── UI 빌드 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -807,6 +822,8 @@ class SimulationScreen(QWidget):
         self.lbl_build_result.setText("")
         self.lbl_phase_scores.setText("")
         self.mid_stack.setCurrentIndex(0)
+        self._set_result_scheduled = False
+        self._set_result_visible = False
 
     # ── 전략 선택 처리 ───────────────────────────────────────
     def _on_strategy_picked(self, strategy: str):
@@ -916,6 +933,7 @@ class SimulationScreen(QWidget):
         # _set_running이 False이면 이미 처리됐거나 비정상 경로 — 재진입 차단
         if not self._set_running:
             return
+        self._set_running = False
         # 중계 화면으로 전환
         self.mid_stack.setCurrentIndex(1)
         self._clear_commentary()
@@ -963,7 +981,7 @@ class SimulationScreen(QWidget):
             for i, line in enumerate(self._commentary_queue):
                 if i < len(self._comment_labels):
                     self._comment_labels[i].setText(f"▸ {line}")
-            QTimer.singleShot(SET_RESULT_DELAY_MS, self._show_set_result)
+            self._schedule_set_result(SET_RESULT_DELAY_MS)
         else:
             self._timer = QTimer(self)
             self._timer.timeout.connect(self._show_next_commentary)
@@ -978,7 +996,7 @@ class SimulationScreen(QWidget):
             self._comment_idx += 1
         else:
             self._timer.stop()
-            QTimer.singleShot(SET_RESULT_DELAY_MS, self._show_set_result)
+            self._schedule_set_result(SET_RESULT_DELAY_MS)
 
     # ── 중계 스킵 ────────────────────────────────────────────
     def _skip_commentary(self):
@@ -991,10 +1009,21 @@ class SimulationScreen(QWidget):
                 self._comment_labels[i].setText(
                     f"▸ {self._commentary_queue[i]}"
                 )
-        QTimer.singleShot(200, self._show_set_result)
+        self._schedule_set_result(200)
+
+    def _schedule_set_result(self, delay_ms: int):
+        if self._set_result_scheduled or self._set_result_visible:
+            return
+        self._set_result_scheduled = True
+        QTimer.singleShot(delay_ms, self._show_set_result)
 
     # ── 세트 결과 표시 ───────────────────────────────────────
     def _show_set_result(self):
+        if self._set_result_visible:
+            return
+        self._set_result_scheduled = False
+        self._set_result_visible = True
+
         # 세트 종료 시점에 AI 전략 기록 (다음 세트 힌트용)
         self._prev_ai_strategy = self._pending_ai_strategy
 

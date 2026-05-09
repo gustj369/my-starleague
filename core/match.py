@@ -240,6 +240,7 @@ def simulate_set(
     build_b: str = "바위",
     strategy_a: str = "균형",
     strategy_b: str = "균형",   # AI/상대방 전략 (PRD v12: 양방향 적용)
+    _conn=None,                 # 내부용: simulate_series()에서 공유 연결 전달 시 사용
 ) -> SetResult:
     """단일 세트 결과 반환. DB에 쓰지 않는다.
 
@@ -249,23 +250,32 @@ def simulate_set(
     - 후반: 피로도 +15 시뮬레이션 (체력 저하)
     - 2/3 페이즈 승리 시 세트 승리
     """
-    # BUG-11 수정: 예외 발생 시 conn.close()가 미도달하는 연결 누수 →
-    # try/finally 로 항상 연결을 닫도록 보장.
-    conn = get_connection()
-    try:
-        cur = conn.cursor()
+    if _conn is not None:
+        # 공유 연결 사용 (닫지 않음 — 호출자 책임)
+        cur = _conn.cursor()
         pa = _get_player(cur, player_a_id)
         pb = _get_player(cur, player_b_id)
         mp = _get_map(cur, map_id)
         ia = _get_item_bonuses(cur, player_a_id)
         ib = _get_item_bonuses(cur, player_b_id)
-    finally:
-        conn.close()
+        rival_info = get_rival_info(player_a_id, player_b_id, _cur=cur)
+    else:
+        # BUG-11 수정: 예외 발생 시 conn.close()가 미도달하는 연결 누수 →
+        # try/finally 로 항상 연결을 닫도록 보장.
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            pa = _get_player(cur, player_a_id)
+            pb = _get_player(cur, player_b_id)
+            mp = _get_map(cur, map_id)
+            ia = _get_item_bonuses(cur, player_a_id)
+            ib = _get_item_bonuses(cur, player_b_id)
+            rival_info = get_rival_info(player_a_id, player_b_id, _cur=cur)
+        finally:
+            conn.close()
 
     map_bonus_a = mp[RACE_BONUS_COL[pa["race"]]]
     map_bonus_b = mp[RACE_BONUS_COL[pb["race"]]]
-
-    rival_info = get_rival_info(player_a_id, player_b_id)
     # PRD v10 수정: rival_stat을 양쪽에 동일하게 적용하면 상쇄되어 효과 없음.
     # → rival_stat 제거, extra_luck은 "변동성 확장"(extra_luck_range)으로 재설계.
     #   라이벌전에서 양쪽의 luck 범위가 독립적으로 확장 → 더 드라마틱한 경기.
@@ -403,6 +413,7 @@ def finalize_match(
     a_condition: str = "보통",
     b_condition: str = "보통",
     award_gold: bool = True,
+    _conn=None,                 # 내부용: simulate_series()에서 공유 연결 전달 시 사용
 ) -> MatchOutcome:
     """시뮬레이션 화면에서 세트가 끝난 뒤 호출.
     stats 업데이트 + match_results 저장 + 골드 지급.
@@ -412,40 +423,45 @@ def finalize_match(
     winner_id = player_a_id if a_wins > b_wins else player_b_id
     loser_id  = player_b_id if winner_id == player_a_id else player_a_id
 
-    conn = get_connection()
-    cur = conn.cursor()
-    pa = _get_player(cur, player_a_id)
-    pb = _get_player(cur, player_b_id)
+    # 공유 연결이면 그대로, 아니면 새 연결을 생성하고 종료 시 닫음
+    _owns_conn = _conn is None
+    conn = get_connection() if _owns_conn else _conn
+    try:
+        cur = conn.cursor()
+        pa = _get_player(cur, player_a_id)
+        pb = _get_player(cur, player_b_id)
 
-    power_diff = abs(
-        sum(s.a_power for s in sets) / len(sets) -
-        sum(s.b_power for s in sets) / len(sets)
-    )
+        power_diff = abs(
+            sum(s.a_power for s in sets) / len(sets) -
+            sum(s.b_power for s in sets) / len(sets)
+        )
 
-    winner = pa if winner_id == player_a_id else pb
-    loser  = pb if winner_id == player_a_id else pa
+        winner = pa if winner_id == player_a_id else pb
+        loser  = pb if winner_id == player_a_id else pa
 
-    upset_level = calc_upset_level(winner["grade"], loser["grade"])
-    is_upset = upset_level > 0
-    upset_gold, upset_stat_bonus = calc_upset_rewards(upset_level) if is_upset else (0, {})
+        upset_level = calc_upset_level(winner["grade"], loser["grade"])
+        is_upset = upset_level > 0
+        upset_gold, upset_stat_bonus = calc_upset_rewards(upset_level) if is_upset else (0, {})
 
-    if winner_id == player_a_id:
-        a_delta = _apply_winner_delta(winner, upset_stat_bonus if is_upset else None)
-        b_delta = _apply_loser_delta(pb, power_diff)
-    else:
-        b_delta = _apply_winner_delta(winner, upset_stat_bonus if is_upset else None)
-        a_delta = _apply_loser_delta(pa, power_diff)
+        if winner_id == player_a_id:
+            a_delta = _apply_winner_delta(winner, upset_stat_bonus if is_upset else None)
+            b_delta = _apply_loser_delta(pb, power_diff)
+        else:
+            b_delta = _apply_winner_delta(winner, upset_stat_bonus if is_upset else None)
+            a_delta = _apply_loser_delta(pa, power_diff)
 
-    _update_player_stats(cur, pa, a_delta)
-    _update_player_stats(cur, pb, b_delta)
+        _update_player_stats(cur, pa, a_delta)
+        _update_player_stats(cur, pb, b_delta)
 
-    rival_info = get_rival_info(player_a_id, player_b_id)
-    is_rival_match = rival_info is not None
+        rival_info = get_rival_info(player_a_id, player_b_id)
+        is_rival_match = rival_info is not None
 
-    match_id = _save_match_result(cur, map_id, player_a_id, player_b_id,
-                                  winner_id, a_delta, b_delta, is_upset)
-    conn.commit()
-    conn.close()
+        match_id = _save_match_result(cur, map_id, player_a_id, player_b_id,
+                                      winner_id, a_delta, b_delta, is_upset)
+        conn.commit()
+    finally:
+        if _owns_conn:
+            conn.close()
 
     if award_gold:
         total = 80 + upset_gold
@@ -499,51 +515,40 @@ def simulate_series(
     set_num = 1
 
     STRATEGIES = ["초반집중", "균형", "후반체력전"]
-    while a_wins < sets_to_win and b_wins < sets_to_win:
-        ai_build_a    = _random.choice(BUILD_TYPES)
-        ai_build_b    = _random.choice(BUILD_TYPES)
-        ai_strategy_a = _random.choice(STRATEGIES)
-        ai_strategy_b = _random.choice(STRATEGIES)
-        s = simulate_set(
-            player_a_id, player_b_id, map_id,
+    # 연결 1개를 생성해 simulate_set(읽기)과 finalize_match(쓰기)가 공유.
+    # 기존 방식(세트마다 연결 생성)에서 매치당 N+1개 → 1개로 감소.
+    conn = get_connection()
+    try:
+        while a_wins < sets_to_win and b_wins < sets_to_win:
+            ai_build_a    = _random.choice(BUILD_TYPES)
+            ai_build_b    = _random.choice(BUILD_TYPES)
+            ai_strategy_a = _random.choice(STRATEGIES)
+            ai_strategy_b = _random.choice(STRATEGIES)
+            s = simulate_set(
+                player_a_id, player_b_id, map_id,
+                a_condition, b_condition,
+                set_number=set_num,
+                series_score=(a_wins, b_wins),
+                build_a=ai_build_a,
+                build_b=ai_build_b,
+                strategy_a=ai_strategy_a,
+                strategy_b=ai_strategy_b,
+                _conn=conn,
+            )
+            sets.append(s)
+            if s.winner_id == player_a_id:
+                a_wins += 1
+            else:
+                b_wins += 1
+            set_num += 1
+
+        return finalize_match(
+            player_a_id, player_b_id,
+            sets, map_id,
             a_condition, b_condition,
-            set_number=set_num,
-            series_score=(a_wins, b_wins),
-            build_a=ai_build_a,
-            build_b=ai_build_b,
-            strategy_a=ai_strategy_a,
-            strategy_b=ai_strategy_b,
+            award_gold=award_gold,
+            _conn=conn,
         )
-        sets.append(s)
-        if s.winner_id == player_a_id:
-            a_wins += 1
-        else:
-            b_wins += 1
-        set_num += 1
+    finally:
+        conn.close()
 
-    return finalize_match(
-        player_a_id, player_b_id,
-        sets, map_id,
-        a_condition, b_condition,
-        award_gold=award_gold,
-    )
-
-
-# ── 하위 호환 래퍼 ────────────────────────────────────────────
-def simulate(
-    player_a_id: int,
-    player_b_id: int,
-    map_id: int,
-    award_gold: bool = True,
-    a_condition: str = "보통",
-    b_condition: str = "보통",
-) -> MatchOutcome:
-    """단일 세트 대결 (기존 호환용). 내부적으로 1세트만 실행."""
-    s = simulate_set(player_a_id, player_b_id, map_id,
-                     a_condition, b_condition, set_number=1)
-    return finalize_match(
-        player_a_id, player_b_id,
-        [s], map_id,
-        a_condition, b_condition,
-        award_gold=award_gold,
-    )

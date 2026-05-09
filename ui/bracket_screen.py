@@ -11,7 +11,7 @@ from PyQt6.QtGui import (
 
 from core.tournament import (
     ROUNDS, get_all_matches, get_my_pending_match,
-    is_round_complete, simulate_ai_matches
+    is_round_complete, simulate_ai_matches, get_tournament
 )
 from core.balance import is_rival
 from database.db import get_connection, get_gold
@@ -359,6 +359,12 @@ class BracketScreen(QWidget):
         self.lbl_status.setStyleSheet(
             "color: #5B6CF6; font-size: 13px; font-weight: bold; background: transparent;"
         )
+        self.lbl_round_summary = QLabel("")
+        self.lbl_round_summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_round_summary.setStyleSheet(
+            "color: #868E96; font-size: 12px; background: #F8F9FA; "
+            "border: 1px solid #E9ECEF; border-radius: 5px; padding: 5px 10px;"
+        )
 
         # 브라켓 캔버스 (스크롤 가능)
         scroll = QScrollArea()
@@ -387,6 +393,7 @@ class BracketScreen(QWidget):
         root.addLayout(hdr)
         root.addWidget(make_separator())
         root.addWidget(self.lbl_status)
+        root.addWidget(self.lbl_round_summary)
         root.addWidget(scroll, 1)
         root.addWidget(make_separator())
         root.addLayout(btn_row)
@@ -423,12 +430,27 @@ class BracketScreen(QWidget):
             self.lbl_status.setText("이번 라운드 경기가 완료되었습니다.")
             self.btn_prep.setEnabled(False)
             self.btn_ai.setEnabled(False)
+        self._update_round_summary(my_match)
+
+    def _update_round_summary(self, my_match: dict | None):
+        t = get_tournament(self._tid) if self._tid is not None else None
+        if not t:
+            self.lbl_round_summary.setText("")
+            return
+
+        matches = get_all_matches(self._tid).get(t["current_round"], [])
+        total = len(matches)
+        done = sum(1 for m in matches if m["status"] == "completed")
+        ai_left = sum(1 for m in matches if m["status"] == "pending" and not m["is_my_match"])
+        my_state = "대기 중" if my_match else "완료"
+        self.lbl_round_summary.setText(
+            f"현재 라운드: {t['current_round']}  |  완료 {done}/{total}  |  남은 AI 경기 {ai_left}  |  내 경기 {my_state}"
+        )
 
     def _all_ai_done(self) -> bool:
         """AI 경기가 모두 완료됐는지"""
         if self._tid is None:
             return True
-        from core.tournament import get_tournament
         t = get_tournament(self._tid)
         if not t:
             return True

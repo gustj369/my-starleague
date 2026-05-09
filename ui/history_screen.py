@@ -10,9 +10,7 @@ from PyQt6.QtGui import QColor
 from database.db import get_connection
 from ui.widgets import make_separator
 from ui.styles import RACE_COLORS, RACE_DISPLAY
-
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.utils import STAT_KEYS, STAT_LABELS
 
 
 def _load_history() -> list[dict]:
@@ -277,7 +275,7 @@ class HistoryScreen(QWidget):
         for side, name_key in [("a", "a_name"), ("b", "b_name")]:
             deltas = [
                 (lbl, r.get(f"{side}_{key}_delta", 0))
-                for key, lbl in zip(STAT_KEYS, STAT_LABELS)
+                for key, lbl in STAT_LABELS.items()
             ]
             result[side] = _delta_text(r[name_key], deltas)
 

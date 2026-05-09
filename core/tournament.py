@@ -159,7 +159,7 @@ def simulate_ai_matches(tid: int):
                 award_gold=False,
             )
             _complete_tm(m['id'], outcome.winner_id, map_id,
-                         outcome.a_wins, outcome.b_wins)
+                         outcome.a_wins, outcome.b_wins, outcome.is_upset)
 
             # AI 선수 피로도 누적
             add_fatigue(m['player_a_id'], round_name)
@@ -168,22 +168,24 @@ def simulate_ai_matches(tid: int):
 
 def complete_my_match(tm_id: int, winner_id: int, map_id: int,
                       round_name: str = "", my_player_id: int = 0,
-                      a_wins: int = 0, b_wins: int = 0):
+                      a_wins: int = 0, b_wins: int = 0,
+                      is_upset: bool = False):
     """내 선수 경기 완료 처리 + 피로도 누적"""
-    _complete_tm(tm_id, winner_id, map_id, a_wins, b_wins)
+    _complete_tm(tm_id, winner_id, map_id, a_wins, b_wins, is_upset)
     if round_name and my_player_id:
         add_fatigue(my_player_id, round_name)
 
 
 def _complete_tm(tm_id: int, winner_id: int, map_id: int,
-                 a_wins: int = 0, b_wins: int = 0):
+                 a_wins: int = 0, b_wins: int = 0,
+                 is_upset: bool = False):
     with get_connection() as conn:
         conn.execute(
             """UPDATE tournament_matches
                SET winner_id=?, map_id=?, status='completed',
-                   a_wins=?, b_wins=?
+                   a_wins=?, b_wins=?, is_upset=?
                WHERE id=?""",
-            (winner_id, map_id, a_wins, b_wins, tm_id)
+            (winner_id, map_id, a_wins, b_wins, 1 if is_upset else 0, tm_id)
         )
         conn.commit()
 

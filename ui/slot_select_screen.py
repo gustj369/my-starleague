@@ -115,6 +115,31 @@ class SlotCard(QFrame):
                     border-radius: 16px;
                 }
             """)
+        elif info.get("corrupt"):
+            self.lbl_status.setText("⚠ 손상된 슬롯")
+            self.lbl_status.setStyleSheet(
+                "color: #FF6B6B; font-size: 12px; font-weight: bold;"
+                " background: #FFF5F5; border-radius: 6px; padding: 3px 8px;"
+            )
+            self.lbl_gold.setText("")
+            self.lbl_achievement.setText("이어하기 불가 · 새 게임으로 덮어쓸 수 있습니다")
+            self.btn_continue.hide()
+            self.btn_new.setText("새 게임")
+            self.btn_new.setStyleSheet("""
+                QPushButton {
+                    background: transparent; color: #ADB5BD;
+                    border: none; font-size: 11px;
+                }
+                QPushButton:hover { color: #FF6B6B; }
+            """)
+            self.btn_reset.hide()
+            self.setStyleSheet("""
+                QFrame {
+                    background: #FFFFFF;
+                    border: 1px solid #FF6B6B;
+                    border-radius: 16px;
+                }
+            """)
         else:
             # 상태 배지
             status_txt = info["status_text"]

@@ -21,8 +21,8 @@ def _load_maps() -> list[dict]:
         return [dict(r) for r in conn.execute("SELECT * FROM maps ORDER BY id").fetchall()]
 
 
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
+from core.utils import STAT_KEYS, STAT_LABELS
+
 RACE_BONUS_COL = {"테란": "terran_bonus", "저그": "zerg_bonus", "프로토스": "protoss_bonus"}
 
 
@@ -132,7 +132,7 @@ class MatchScreen(QWidget):
         stat_lay = QVBoxLayout(stat_frame)
         stat_lay.setContentsMargins(0, 0, 0, 0)
         stat_lay.setSpacing(3)
-        for key, label in zip(STAT_KEYS, STAT_LABELS):
+        for key, label in STAT_LABELS.items():
             bar = StatBar(label, 0)
             bar.setObjectName(f"bar_{slot}_{key}")
             stat_lay.addWidget(bar)

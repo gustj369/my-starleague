@@ -9,10 +9,9 @@ from PyQt6.QtGui import QColor
 from database.db import get_connection, get_gold  # set_gold는 _buy_item 내부 트랜잭션으로 대체됨
 from ui.widgets import make_separator
 from ui.styles import RACE_DISPLAY
+from core.utils import _safe_int, STAT_KEYS, STAT_LABELS
 
-STAT_KEYS   = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = ["컨트롤", "공격력", "수비력", "물량", "전략", "센스"]
-MAX_ITEMS   = 3
+MAX_ITEMS  = 3
 
 ITEM_TYPES = ["전체", "능력치", "컨디션", "피로회복"]
 
@@ -53,7 +52,7 @@ def _buy_item(player_id: int, item_id: int, price: int) -> str | None:
         gold_row = conn.execute(
             "SELECT value FROM game_state WHERE key='gold'"
         ).fetchone()
-        gold = int(gold_row["value"]) if gold_row else 0
+        gold = _safe_int(gold_row["value"], 0) if gold_row else 0
 
         if gold < price:
             return f"골드가 부족합니다. (보유: {gold}G, 필요: {price}G)"
@@ -134,6 +133,7 @@ class ShopScreen(QWidget):
         self.cmb_player = QComboBox()
         self.cmb_player.setMinimumWidth(160)
         self.cmb_player.currentIndexChanged.connect(self._update_equipped_panel)
+        self.cmb_player.currentIndexChanged.connect(self._update_buy_preview)
         buy_row.addWidget(self.cmb_player)
         buy_row.addStretch()
 
@@ -181,6 +181,14 @@ class ShopScreen(QWidget):
         self.table.setColumnWidth(3, 65)
         for c in range(4, 10):
             self.table.setColumnWidth(c, 58)
+        self.table.itemSelectionChanged.connect(self._update_buy_preview)
+
+        self.lbl_preview = QLabel("아이템을 선택하면 구매 전 효과가 표시됩니다.")
+        self.lbl_preview.setWordWrap(True)
+        self.lbl_preview.setStyleSheet(
+            "color: #495057; font-size: 12px; background: #F8F9FA; "
+            "border: 1px solid #E9ECEF; border-radius: 6px; padding: 6px 10px;"
+        )
 
         # 구매 버튼
         btn_row = QHBoxLayout()
@@ -197,6 +205,7 @@ class ShopScreen(QWidget):
         root.addLayout(buy_row)
         root.addWidget(self.equipped_frame)
         root.addWidget(self.table, 1)
+        root.addWidget(self.lbl_preview)
         root.addLayout(btn_row)
 
     # ──────────────────────────────────────────
@@ -217,6 +226,7 @@ class ShopScreen(QWidget):
 
         self._update_equipped_panel()
         self._reload_table()
+        self._update_buy_preview()
 
     def _update_equipped_panel(self):
         """선택된 선수의 장착 아이템 슬롯 패널을 갱신한다."""
@@ -269,7 +279,7 @@ class ShopScreen(QWidget):
             tip_lines = [f"【{item['name']}】  {itype}  |  {item['price']}G",
                          "", item["description"], ""]
             bonus_parts = []
-            for key, label in zip(STAT_KEYS, STAT_LABELS):
+            for key, label in STAT_LABELS.items():
                 v = item.get(f"{key}_bonus", 0)
                 if v > 0:
                     bonus_parts.append(f"{label} +{v}")
@@ -315,6 +325,38 @@ class ShopScreen(QWidget):
                     }.get(itype, "#212529")
                     ti.setForeground(QColor(type_color))
                 self.table.setItem(row, ci, ti)
+        self._update_buy_preview()
+
+    def _update_buy_preview(self):
+        row = self.table.currentRow()
+        if row < 0 or row >= len(self._items):
+            self.lbl_preview.setText("아이템을 선택하면 구매 전 효과가 표시됩니다.")
+            return
+
+        item = self._items[row]
+        current_gold = get_gold()
+        parts = []
+        for key, label in STAT_LABELS.items():
+            bonus = item.get(f"{key}_bonus", 0)
+            if bonus:
+                parts.append(f"{label} +{bonus}")
+        if item.get("condition_up", 0):
+            parts.append("컨디션 1단계 상향")
+        if item.get("fatigue_recover", 0):
+            parts.append("피로도 1구간 회복")
+        effect = " · ".join(parts) if parts else "직접 능력치 변화 없음"
+
+        player_idx = self.cmb_player.currentIndex()
+        slot_text = ""
+        if 0 <= player_idx < len(self._players):
+            cnt = _count_player_items(self._players[player_idx]["id"])
+            slot_text = f"  |  장착 슬롯 {cnt}/{MAX_ITEMS}"
+
+        price = item["price"]
+        gold_text = "구매 가능" if current_gold >= price else f"골드 부족 {current_gold}/{price}G"
+        self.lbl_preview.setText(
+            f"미리보기: {item['name']}  |  {effect}  |  가격 {price}G  |  {gold_text}{slot_text}"
+        )
 
     def _on_buy(self):
         sel = self.table.selectedItems()

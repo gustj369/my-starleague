@@ -2,6 +2,7 @@
 import random
 from database.db import get_connection
 from core.grade import calc_overall, calc_grade
+from core.utils import STAT_KEYS, STAT_LABELS
 
 
 def _growth_max_delta(overall: float, cfg_max: int) -> int:
@@ -15,16 +16,6 @@ def _growth_max_delta(overall: float, cfg_max: int) -> int:
     elif overall >= 85:
         return min(max(cfg_max - 1, 1), cfg_max)
     return cfg_max
-
-STAT_KEYS = ["control", "attack", "defense", "supply", "strategy", "sense"]
-STAT_LABELS = {
-    "control":  "컨트롤",
-    "attack":   "공격력",
-    "defense":  "수비력",
-    "supply":   "물량",
-    "strategy": "전략",
-    "sense":    "센스",
-}
 
 # 업적별 성장 테이블
 GROWTH_TABLE = {
