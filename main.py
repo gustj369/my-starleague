@@ -104,6 +104,7 @@ class NavBar(QWidget):
         lay.addSpacing(20)
 
         self._nav_cb = None
+        self._nav_btns: list[QPushButton] = []
         for label, idx in [
             ("선수 관리", Screen.PLAYERS),
             ("아이템 상점", Screen.SHOP),
@@ -123,6 +124,7 @@ class NavBar(QWidget):
                 QPushButton:hover { color: #5B6CF6; border-color: #5B6CF6; background: #EEF2FF; }
             """)
             btn.clicked.connect(lambda _, i=idx: self._nav_cb and self._nav_cb(i))
+            self._nav_btns.append(btn)
             lay.addWidget(btn)
 
         lay.addSpacing(4)
@@ -165,6 +167,39 @@ class NavBar(QWidget):
 
     def update_gold(self):
         self.lbl_gold.setText(f"💰 {get_gold():,} G")
+
+    def set_active(self, idx: int):
+        """NavBar 버튼 중 idx 에 해당하는 버튼을 활성 스타일로, 나머지는 비활성으로.
+        idx = -1 이면 모든 버튼 비활성화 (게임 화면 복귀 시).
+        """
+        _active = """QPushButton {
+            background: #EEF2FF; color: #5B6CF6;
+            border: 2px solid #5B6CF6; border-radius: 8px;
+            padding: 0 10px; font-size: 12px;
+        }"""
+        _inactive = """QPushButton {
+            background: transparent; color: #212529;
+            border: 1px solid #E9ECEF; border-radius: 8px;
+            padding: 0 10px; font-size: 12px;
+        }
+        QPushButton:hover { color: #5B6CF6; border-color: #5B6CF6; background: #EEF2FF; }"""
+        _s_active = """QPushButton {
+            background: #EEF2FF; color: #5B6CF6;
+            border: 2px solid #5B6CF6; border-radius: 8px;
+            font-size: 14px; padding: 0;
+        }"""
+        _s_inactive = """QPushButton {
+            background: transparent; color: #868E96;
+            border: 1px solid #E9ECEF; border-radius: 8px;
+            font-size: 14px; padding: 0;
+        }
+        QPushButton:hover { color: #5B6CF6; border-color: #5B6CF6; background: #EEF2FF; }"""
+
+        for btn in self._nav_btns:
+            btn.setStyleSheet(_active if btn.property("_idx") == idx else _inactive)
+        self.btn_settings.setStyleSheet(
+            _s_active if idx == Screen.SETTINGS else _s_inactive
+        )
 
 
 class MainWindow(QMainWindow):
@@ -293,6 +328,10 @@ class MainWindow(QMainWindow):
         if self._fade_anim.startValue() == 1.0:
             # 페이드 아웃 완료 → 화면 전환 후 페이드 인
             self.stack.setCurrentIndex(idx)
+            title = self._SCREEN_TITLES.get(idx, "")
+            self.setWindowTitle(
+                f"레전드 리그  —  {title}" if title else "레전드 리그  —  2026 시즌"
+            )
             self._fade_anim.setStartValue(0.0)
             self._fade_anim.setEndValue(1.0)
             self._fade_anim.start()
@@ -302,6 +341,24 @@ class MainWindow(QMainWindow):
         Screen.PLAYERS, Screen.SHOP, Screen.HISTORY, Screen.RANKING,
         Screen.SETTINGS, Screen.ACHIEVEMENTS,
     })
+
+    # 화면별 윈도우 타이틀 suffix (없으면 기본값 "2026 시즌" 사용)
+    _SCREEN_TITLES: dict[int, str] = {
+        Screen.SLOT:         "슬롯 선택",
+        Screen.MENU:         "메인 메뉴",
+        Screen.SELECT:       "선수 선택",
+        Screen.BRACKET:      "대진표",
+        Screen.PREP:         "경기 준비",
+        Screen.SIMULATION:   "경기 중",
+        Screen.RESULT:       "경기 결과",
+        Screen.FINAL:        "최종 결과",
+        Screen.PLAYERS:      "선수 관리",
+        Screen.SHOP:         "아이템 상점",
+        Screen.HISTORY:      "대결 기록",
+        Screen.RANKING:      "선수 랭킹",
+        Screen.SETTINGS:     "설정",
+        Screen.ACHIEVEMENTS: "도전과제",
+    }
 
     def _nav_to(self, idx: int):
         current = self.stack.currentIndex()
@@ -321,8 +378,10 @@ class MainWindow(QMainWindow):
         elif idx == Screen.ACHIEVEMENTS:
             self.s_achievements.refresh()
         self._go(idx)
+        self.navbar.set_active(idx)  # 진입한 서브화면 버튼 강조
 
     def _sub_back(self):
+        self.navbar.set_active(-1)  # 서브화면 복귀 시 강조 해제
         self._go(self._pre_nav_idx)
         self.navbar.update_gold()
 

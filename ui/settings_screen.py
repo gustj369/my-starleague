@@ -1,6 +1,6 @@
 """설정 화면 — 중계 속도, 기타 옵션"""
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -132,6 +132,14 @@ class SettingsScreen(QWidget):
         root.addWidget(check_desc)
         root.addStretch()
 
+        # ── 버전 정보 (우하단) ──
+        root.addSpacing(8)
+        self.lbl_version = QLabel("")
+        self.lbl_version.setStyleSheet(
+            "color: #CED4DA; font-size: 11px; background: transparent;"
+        )
+        root.addWidget(self.lbl_version)
+
     def _on_speed_picked(self, key: str):
         set_setting("commentary_speed", key)
         self._update_speed_ui(key)
@@ -171,3 +179,8 @@ class SettingsScreen(QWidget):
         """화면 진입 시 현재 설정 로드."""
         current = get_setting("commentary_speed", "normal")
         self._update_speed_ui(current)
+        # 버전 정보 갱신
+        app = QApplication.instance()
+        app_ver = app.applicationVersion() if app else "v1.0.0"
+        db_ver = get_setting("db_version", "?")
+        self.lbl_version.setText(f"앱 버전: {app_ver}  |  DB 버전: {db_ver}")

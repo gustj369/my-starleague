@@ -71,6 +71,25 @@ def main() -> int:
         spec_text = spec_path.read_text(encoding="utf-8")
         ok &= check("EXE 이름은 LegendLeague", "name='LegendLeague'" in spec_text)
 
+    req_path = ROOT / "requirements.txt"
+    if req_path.exists():
+        req_lines = [
+            ln.strip()
+            for ln in req_path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.startswith("#")
+        ]
+        bad_req = [
+            ln for ln in req_lines
+            if ("==" not in ln) or any(op in ln for op in (">=", "<=", "~=", "!="))
+        ]
+        ok &= check(
+            "requirements.txt 버전 == 고정",
+            not bad_req,
+            ", ".join(bad_req) if bad_req else "",
+        )
+    else:
+        ok &= check("requirements.txt 존재", False, str(req_path))
+
     print()
     if ok:
         print("All project rule checks passed.")
