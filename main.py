@@ -390,6 +390,7 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _to_slot_select(self):
+        self.navbar.set_active(-1)  # 슬롯 화면 복귀 시 강조 해제 (향후 NavBar 표시 확장 대비)
         self.navbar.setVisible(False)
         self.s_slot.refresh()
         self._go(Screen.SLOT)
