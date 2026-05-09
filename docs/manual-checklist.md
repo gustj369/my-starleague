@@ -119,6 +119,7 @@ api_key = os.getenv("ANTHROPIC_API_KEY", "")
 
 | 날짜 | 커밋 | 내용 |
 |---|---|---|
+| 2026-05-09 | `0f04c98` | UI 소개선 5종: 윈도우 타이틀 화면명, build.bat, NavBar 하이라이트, 설정 버전 표시, verify requirements 검사 |
 | 2026-05-09 | `1168240` | 소개선 5종: APP_VERSION 중복 제거, NavBar 골드 한국어+쉼표, requirements 버전 고정, verify 실행법 문서화, _show_final update_gold 보장 |
 | 2026-04-26 | `909f44b` | P1: 경기 화면 중복 입력 방지 (`_set_running` 플래그) |
 | 2026-04-26 | `f366435` | 배포 전 품질 향상 패키지 v1.0.0 |
