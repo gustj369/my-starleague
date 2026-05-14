@@ -714,7 +714,6 @@ class MainWindow(QMainWindow):
                 had_upset_in_tournament=self._had_upset_this_tournament,
             )
             if newly_earned:
-                icons = {"첫 우승": "🏆", "베테랑": "🎖", "레전드": "👑"}
                 msg = "\n".join(f"  {a}" for a in newly_earned)
                 QMessageBox.information(
                     self, "🏆 도전과제 달성!",
