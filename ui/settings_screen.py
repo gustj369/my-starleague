@@ -1,4 +1,4 @@
-"""설정 화면 — 중계 속도, 기타 옵션"""
+﻿"""설정 화면 — 중계 속도, 기타 옵션"""
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 )
@@ -124,10 +124,8 @@ class SettingsScreen(QWidget):
 
         check_desc = QLabel(
             "코드 변경 후 기본 흐름을 손으로 확인할 때 참고하세요.<br>"
-            "문서 위치: <a href='https://github.com/gustj369/my-starleague/blob/main/docs/manual-checklist.md'"
-            " style='color:#5B6CF6;'>docs/manual-checklist.md</a>"
+            "문서 위치: RTS2/docs/manual-checklist.md"
         )
-        check_desc.setOpenExternalLinks(True)
         check_desc.setStyleSheet("color: #868E96; font-size: 12px; background: transparent;")
         root.addWidget(check_desc)
         root.addStretch()
